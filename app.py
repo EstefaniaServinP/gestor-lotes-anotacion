@@ -1272,7 +1272,7 @@ def get_metrics_overview():
         stats = {
             "total_batches": 0,
             "completed_batches": 0,  # S
-            "in_progress_batches": 0,  # FS
+            "in_progress_batches": 0,  # In
             "pending_batches": 0,     # NS
             "unassigned_batches": 0   # assignee null/empty
         }
@@ -1285,7 +1285,7 @@ def get_metrics_overview():
 
             if status == "S":
                 stats["completed_batches"] = count
-            elif status == "FS":
+            elif status == "In":
                 stats["in_progress_batches"] = count
             elif status == "NS":
                 stats["pending_batches"] = count
@@ -1367,7 +1367,7 @@ def get_metrics_team():
                     "_id": "$assignee_normalized",
                     "total": {"$sum": 1},
                     "completed": {"$sum": {"$cond": [{"$eq": ["$status", "S"]}, 1, 0]}},
-                    "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "FS"]}, 1, 0]}},
+                    "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "In"]}, 1, 0]}},
                     "pending": {"$sum": {"$cond": [{"$eq": ["$status", "NS"]}, 1, 0]}},
                     "batches": {"$push": {
                         "id": "$id",
@@ -1394,7 +1394,7 @@ def get_metrics_team():
             recent_batches_full = sorted(batches, key=lambda x: x.get("sort_date", "1970-01-01"), reverse=True)[:3]
             recent_batches = [batch["id"] for batch in recent_batches_full]
 
-            # Calcular eficiencia: S / (S + FS)
+            # Calcular eficiencia: S / (S + In)
             active_work = result["completed"] + result["in_progress"]
             efficiency = round((result["completed"] / active_work * 100), 1) if active_work > 0 else 0
 
@@ -1483,7 +1483,7 @@ def get_metrics_progress():
                     "_id": "$metadata.assigned_at",
                     "total": {"$sum": 1},
                     "completed": {"$sum": {"$cond": [{"$eq": ["$status", "S"]}, 1, 0]}},
-                    "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "FS"]}, 1, 0]}},
+                    "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "In"]}, 1, 0]}},
                     "pending": {"$sum": {"$cond": [{"$eq": ["$status", "NS"]}, 1, 0]}}
                 }
             },
@@ -1587,7 +1587,7 @@ def export_metrics():
                     },
                     "total": {"$sum": 1},
                     "S": {"$sum": {"$cond": [{"$eq": ["$status", "S"]}, 1, 0]}},
-                    "FS": {"$sum": {"$cond": [{"$eq": ["$status", "FS"]}, 1, 0]}},
+                    "In": {"$sum": {"$cond": [{"$eq": ["$status", "In"]}, 1, 0]}},
                     "NS": {"$sum": {"$cond": [{"$eq": ["$status", "NS"]}, 1, 0]}}
                 }
             },
@@ -1606,7 +1606,7 @@ def export_metrics():
         writer = csv.writer(output)
 
         # Headers
-        writer.writerow(['date', 'assignee', 'total', 'S', 'FS', 'NS', 'completionRate', 'efficiency'])
+        writer.writerow(['date', 'assignee', 'total', 'S', 'In', 'NS', 'completionRate', 'efficiency'])
 
         # Datos
         for result in results:
@@ -1614,7 +1614,7 @@ def export_metrics():
             assignee = result["_id"]["assignee"]
             total = result["total"]
             completed = result["S"]
-            in_progress = result["FS"]
+            in_progress = result["In"]
             pending = result["NS"]
 
             completion_rate = round((completed / total * 100), 1) if total > 0 else 0
@@ -2157,7 +2157,7 @@ def backup_database():
                 "total_segmentadores": len(segmentadores),
                 "batches_by_status": {
                     "NS": sum(1 for b in batches if b.get("status") == "NS"),
-                    "FS": sum(1 for b in batches if b.get("status") == "FS"),
+                    "In": sum(1 for b in batches if b.get("status") == "In"),
                     "S": sum(1 for b in batches if b.get("status") == "S")
                 }
             },
@@ -2310,7 +2310,7 @@ def export_batches_report():
 
         total_batches = len(all_batches)
         completed_batches = sum(1 for b in all_batches if b.get("status") == "S")
-        in_progress_batches = sum(1 for b in all_batches if b.get("status") == "FS")
+        in_progress_batches = sum(1 for b in all_batches if b.get("status") == "In")
         pending_batches = sum(1 for b in all_batches if b.get("status") == "NS")
 
         # Batches con revisión
@@ -2346,7 +2346,7 @@ def export_batches_report():
             status = batch.get("status", "NS")
             if status == "S":
                 team_stats[assignee]["completed"] += 1
-            elif status == "FS":
+            elif status == "In":
                 team_stats[assignee]["in_progress"] += 1
             elif status == "NS":
                 team_stats[assignee]["pending"] += 1
@@ -2491,7 +2491,7 @@ def export_batches_report():
             metrics_data = [
                 ("Total de Batches", total_batches),
                 ("Batches Completados (S)", completed_batches),
-                ("Batches En Progreso (FS)", in_progress_batches),
+                ("Batches En Progreso (In)", in_progress_batches),
                 ("Batches Pendientes (NS)", pending_batches),
                 ("Batches Sin Asignar", unassigned_batches),
                 ("", ""),

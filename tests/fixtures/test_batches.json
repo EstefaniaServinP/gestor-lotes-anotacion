@@ -34,7 +34,7 @@
       "priority": "media",
       "reviewed_at": null
     },
-    "status": "FS",
+    "status": "In",
     "mongo_uploaded": false,
     "comments": "Batch de prueba 2 - segmentación en progreso",
     "specification": "Pieza de prueba (defecto_a OK, defecto_b NOK)"

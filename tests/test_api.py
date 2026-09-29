@@ -66,10 +66,10 @@ def test_crud_de_un_lote(client):
     assert creado["status"] == "NS"
     assert creado["specification"] == nuevo["specification"]
 
-    res = client.put("/api/batches/batch_prueba_001", json={"status": "FS", "metadata": {"priority": "media"}})
+    res = client.put("/api/batches/batch_prueba_001", json={"status": "In", "metadata": {"priority": "media"}})
     assert res.get_json()["success"] is True
     lote = _all_batches(client)[0]
-    assert lote["status"] == "FS"
+    assert lote["status"] == "In"
     assert lote["metadata"]["priority"] == "media"
     assert lote["metadata"]["due_date"] == "2025-12-31"
 
@@ -133,7 +133,7 @@ def test_metricas_y_respaldo(client):
     assert backup.status_code == 200
     data = json.loads(backup.data)
     assert data["statistics"]["total_batches"] == 5
-    assert data["statistics"]["batches_by_status"] == {"NS": 3, "FS": 1, "S": 1}
+    assert data["statistics"]["batches_by_status"] == {"NS": 3, "In": 1, "S": 1}
 
 
 def test_exportar_reporte_excel(client):

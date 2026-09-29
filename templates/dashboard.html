@@ -1280,10 +1280,10 @@
         
         // Selector de estatus de segmentación
         const statusSelect = `
-          <select class="form-select form-select-sm segmentation-status-select" data-batch-id="${batch.id}" style="min-width: 120px;">
+          <select class="form-select form-select-sm segmentation-status-select" data-batch-id="${batch.id}" style="min-width: 180px;">
             <option value="In" ${batch.status === 'In' ? 'selected' : ''}>In - Incompleta</option>
             <option value="NS" ${batch.status === 'NS' ? 'selected' : ''}>NS - No Segmentado</option>
-            <option value="S" ${batch.status === 'S' ? 'selected' : ''}>S - Segmentado (QUITAR DE COLA)</option>
+            <option value="S" ${batch.status === 'S' ? 'selected' : ''}>S - Segmentado</option>
           </select>
         `;
         
@@ -2710,7 +2710,7 @@ Escribe "CONFIRMAR" para proceder:`;
           byAssignee[b.assignee] = { 
             total: 0, 
             pending: 0,     // NS
-            inProgress: 0,  // FS  
+            inProgress: 0,  // In  
             completed: 0,   // S
             batches: []
           };
@@ -2718,7 +2718,7 @@ Escribe "CONFIRMAR" para proceder:`;
         byAssignee[b.assignee].total++;
         byAssignee[b.assignee].batches.push(b);
         if (b.status === 'NS') byAssignee[b.assignee].pending++;
-        else if (b.status === 'FS') byAssignee[b.assignee].inProgress++;
+        else if (b.status === 'In') byAssignee[b.assignee].inProgress++;
         else if (b.status === 'S') byAssignee[b.assignee].completed++;
       });
 
@@ -2747,8 +2747,8 @@ Escribe "CONFIRMAR" para proceder:`;
               <div class="col-md-3">
                 <div class="card bg-warning text-white">
                   <div class="card-body text-center">
-                    <h4>${batches.filter(b => b.status === 'FS').length}</h4>
-                    <small>Incompletas (FS)</small>
+                    <h4>${batches.filter(b => b.status === 'In').length}</h4>
+                    <small>Incompletas (In)</small>
                   </div>
                 </div>
               </div>
@@ -2832,7 +2832,7 @@ Escribe "CONFIRMAR" para proceder:`;
         const recentBatches = stats.batches.slice(-3);
         recentBatches.forEach(batch => {
           const statusColor = batch.status === 'S' ? 'success' : 
-                             batch.status === 'FS' ? 'warning' : 'secondary';
+                             batch.status === 'In' ? 'warning' : 'secondary';
           metricsHtml += `
             <span class="badge bg-${statusColor} me-1 mb-1">${batch.id} (${batch.status})</span>
           `;
@@ -2906,7 +2906,7 @@ Escribe "CONFIRMAR" para proceder:`;
         }
         byAssignee[b.assignee].total++;
         if (b.status === 'NS') byAssignee[b.assignee].pending++;
-        else if (b.status === 'FS') byAssignee[b.assignee].inProgress++;
+        else if (b.status === 'In') byAssignee[b.assignee].inProgress++;
         else if (b.status === 'S') byAssignee[b.assignee].completed++;
       });
 
@@ -3217,7 +3217,7 @@ Escribe "CONFIRMAR" para proceder:`;
                   <strong>Segmentado:</strong> Batch completamente segmentado
                 </li>
                 <li class="mb-2">
-                  <span class="badge bg-warning me-2">FS</span>
+                  <span class="badge bg-warning me-2">In</span>
                   <strong>Incompleta:</strong> Faltan algunas imágenes por segmentar
                 </li>
                 <li class="mb-2">
@@ -3257,7 +3257,7 @@ Escribe "CONFIRMAR" para proceder:`;
 
       const totalBatches = batches.length;
       const completedBatches = batches.filter(b => b.status === 'S').length;
-      const inProgressBatches = batches.filter(b => b.status === 'FS').length;
+      const inProgressBatches = batches.filter(b => b.status === 'In').length;
       const pendingBatches = batches.filter(b => b.status === 'NS').length;
       const completionRate = ((completedBatches / totalBatches) * 100).toFixed(1);
 

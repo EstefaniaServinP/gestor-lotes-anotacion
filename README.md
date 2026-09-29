@@ -4,7 +4,6 @@ Aplicación web para asignar, dar seguimiento y medir el avance de lotes (*batch
 
 Desarrollada en Enerv DeepEye, una startup de visión por computadora. Esta es una **versión de portafolio con datos ficticios**.
 
-<!-- TODO: agregar las capturas en docs/img/ (equipo.png y dashboard.png) -->
 ![Vista del equipo](docs/img/equipo.png)
 ![Dashboard de lotes](docs/img/dashboard.png)
 
@@ -31,7 +30,7 @@ Ejemplo de un lote (datos ficticios, tomado de [`data/batches_ejemplo.json`](dat
     "priority": "alta",
     "reviewed_at": null
   },
-  "status": "FS",
+  "status": "In",
   "mongo_uploaded": true,
   "comments": "Faltan por subir algunas máscaras"
 }
@@ -48,7 +47,7 @@ Ejemplo de un lote (datos ficticios, tomado de [`data/batches_ejemplo.json`](dat
 | `metadata.due_date` | fecha o `""` | Fecha límite de entrega. |
 | `metadata.priority` | texto | Prioridad: `baja`, `media` o `alta`. |
 | `metadata.reviewed_at` | fecha o `null` | Fecha en que se revisó el lote terminado. |
-| `status` | texto | Estado de segmentación: `NS`, `FS` o `S` (ver [Estados de un lote](#estados-de-un-lote)). |
+| `status` | texto | Estado de segmentación: `NS`, `In` o `S` (ver [Estados de un lote](#estados-de-un-lote)). |
 | `mongo_uploaded` | booleano | Si las máscaras del lote ya están en MongoDB. Se actualiza con la sincronización de máscaras. |
 | `comments` | texto | Observaciones libres. |
 
@@ -79,7 +78,7 @@ gestor-lotes-anotacion/
 ├── app.py                    # Aplicación Flask y rutas
 ├── db.py                     # Conexión a MongoDB (lee .env) e índices
 ├── templates/                # Vistas HTML (equipo, dashboard, métricas, máscaras)
-├── static/                   # CSS y JavaScript
+├── static/                   # CSS y JS del menú lateral y de la gestión de datos
 ├── scripts/                  # Utilidades de mantenimiento
 │   ├── init_db.py            #   Crea colecciones, índices y un equipo de ejemplo
 │   ├── load_batches.py       #   Carga un JSON de lotes a MongoDB
@@ -93,14 +92,17 @@ gestor-lotes-anotacion/
 ├── data/
 │   └── batches_ejemplo.json  # 5 lotes ficticios
 ├── docs/
-│   └── ARQUITECTURA.md       # Arquitectura, modelo de datos y flujos
+│   ├── ARQUITECTURA.md       # Arquitectura, modelo de datos y flujos
+│   ├── API.md                # Referencia completa de la API
+│   └── img/                  # Capturas de pantalla
 ├── tests/
 │   ├── conftest.py           # Fixtures (BD de prueba aislada)
 │   ├── test_api.py           # Pruebas de la API
 │   └── fixtures/             # JSON de prueba
 ├── gunicorn_config.py        # Configuración para producción
 ├── .env.example              # Plantilla de variables de entorno
-└── requirements.txt
+├── requirements.txt
+└── requirements-dev.txt      # Dependencias de desarrollo (pytest, Playwright)
 ```
 
 ## Instalación
@@ -132,55 +134,35 @@ gunicorn -c gunicorn_config.py app:app
 
 ## API
 
-Principales rutas de [`app.py`](app.py):
+Rutas principales (la referencia completa, con las 31 rutas, está en [docs/API.md](docs/API.md)):
 
 | Método | Ruta | Descripción |
 |---|---|---|
 | `GET` | `/api/batches` | Lista los lotes (paginado: `page`, `per_page`) |
 | `POST` | `/api/batches` | Crea un lote |
 | `PUT` | `/api/batches/<id>` | Actualiza un lote (responsable, estado, especificación, metadatos…) |
-| `PUT` | `/api/batches/<id>/change-id` | Cambia el ID de un lote |
 | `DELETE` | `/api/batches/<id>` | Elimina un lote |
 | `POST` | `/api/batches/quick-create` | Crea varios lotes a partir de una lista de IDs pegada como texto |
-| `POST` | `/api/init-batches` | Carga los datos de ejemplo si la colección está vacía (`force: true` para recargar) |
-| `POST` | `/api/reset-batches` | Borra los lotes y recarga los datos de ejemplo |
-| `GET` | `/api/missing-batches` | Lotes del catálogo de ejemplo que aún no están en la BD |
-| `POST` | `/api/data/batches/upload` | Carga lotes desde un JSON (`mode`: `add` o `replace`) |
-| `POST` | `/api/data/batches/delete-by-filter` | Elimina lotes por filtros |
-| `GET` | `/api/data/batches/export` | Exporta todos los lotes en JSON |
-| `GET` | `/api/data/batches/stats` | Estadísticas de la colección de lotes |
 | `GET` | `/api/segmentadores` | Lista el equipo |
-| `POST` | `/api/add-segmentador` | Agrega un integrante |
-| `PUT` | `/api/update-segmentador` | Edita un integrante |
-| `DELETE` | `/api/remove-segmentador` | Elimina un integrante |
-| `POST` | `/api/validate-admin-password` | Valida la contraseña de administrador |
-| `GET` | `/api/check-mongo-files` | Lista las máscaras encontradas en MongoDB |
-| `GET` | `/api/batch-files/<id>` | Máscaras asociadas a un lote |
-| `POST` | `/api/sync-batch-files` | Sincroniza `mongo_uploaded` con las máscaras existentes |
-| `POST` | `/api/auto-create-batches` | Crea lotes a partir de las máscaras encontradas |
 | `GET` | `/api/metrics/overview` | Métricas generales |
-| `GET` | `/api/metrics/team` | Métricas por integrante |
-| `GET` | `/api/metrics/progress` | Avance en el tiempo |
-| `GET` | `/api/metrics/export` | Exporta métricas en CSV |
-| `GET` | `/api/batch-assignment/metrics` | Métricas de asignación |
 | `POST` | `/api/export/batches` | Reporte de lotes en Excel o CSV |
-| `GET` | `/api/export/segmentador/<nombre>` | CSV con los lotes de un integrante |
-| `GET` | `/api/export/all-assignments` | CSV con el resumen de asignaciones |
-| `GET` | `/api/backup/database` | Respaldo completo (lotes y equipo) en JSON |
 
 ## Estados de un lote
 
 | Código | Estado | Significado |
 |---|---|---|
-| `NS` | 🟡 Pendiente | No segmentado; sin comenzar |
-| `FS` | 🔵 Parcial | Segmentación en progreso o incompleta |
+| `NS` | 🟡 No segmentado | Pendiente; sin comenzar |
+| `In` | 🔵 Incompleta | Segmentación en progreso o incompleta |
 | `S` | 🟢 Segmentado | Listo para revisión y entrenamiento |
 
 ## Pruebas
 
 ```bash
+pip install -r requirements-dev.txt   # dependencias de desarrollo (incluye pytest y Playwright)
 python3 -m pytest tests/
 ```
+
+`requirements-dev.txt` incluye `requirements.txt` y agrega Playwright, que se usó para generar las capturas del README (requiere `python -m playwright install chromium`).
 
 Las pruebas usan una base de datos aislada (`gestor_lotes_test`) en el MongoDB local, que se borra al terminar. Si MongoDB no está disponible, se omiten. Para usar otro servidor: `TEST_MONGO_URI=mongodb://... pytest tests/`.
 

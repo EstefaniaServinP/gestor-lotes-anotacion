@@ -12,13 +12,16 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                      FRONTEND (Cliente)                      │
 ├─────────────────────────────────────────────────────────────┤
-│  Templates (Jinja2)  │  JavaScript  │  CSS (Bootstrap 5)    │
-│  ─────────────────── │ ──────────── │ ───────────────────   │
-│  • team.html         │ • menu.js    │ • menu.css            │
-│  • dashboard.html    │ • team.js    │ • common.css          │
-│  • metrics_*.html    │ • dashboard.js                       │
-│  • masks.html        │ • batch_management.js                │
-│  • batch_mgmt.html   │ • masks.js                           │
+│  Templates (Jinja2)       │ JavaScript         │ CSS          │
+│  ──────────────────────── │ ────────────────── │ ──────────── │
+│  • base.html + _sidebar   │ • sidebar.js       │ • Bootstrap 5│
+│  • team.html              │ • data_management  │ • sidebar.css│
+│  • dashboard.html         │   .js              │ • estilos    │
+│  • batch_management.html  │ • JS inline en     │   inline por │
+│  • batch_assignment_v2    │   cada plantilla   │   plantilla  │
+│  • data_management.html   │ • jQuery,          │              │
+│  • metrics_overview.html  │   DataTables       │              │
+│  • masks.html, error.html │                    │              │
 └─────────────────────────────────────────────────────────────┘
                             ↓ HTTP/JSON
 ┌─────────────────────────────────────────────────────────────┐
@@ -111,7 +114,7 @@ def init_db():
 | `/batch-assignment-v2` | `batch_assignment_v2.html` | Interfaz alternativa de asignación |
 | `/masks` | `masks.html` | Visualización de máscaras MongoDB |
 | `/metrics` | `metrics_overview.html` | Métricas generales |
-| `/data-management` | `data_management.html` | Carga, exportación y respaldo de datos |
+| `/data-management` | `data_management.html` | Carga desde JSON, exportación y borrado por filtros |
 
 ---
 
@@ -301,124 +304,68 @@ patterns = [
 
 ### **1. Templates HTML (Jinja2)**
 
-#### Estructura Común:
+Todas las vistas extienden `base.html`, que carga las librerías comunes, el sidebar y define bloques para el CSS y el JavaScript de cada página:
+
 ```html
-<!DOCTYPE html>
-<html>
 <head>
-  <!-- Bootstrap 5 -->
-  <!-- Font Awesome 6 -->
-  <!-- DataTables (opcional) -->
-  <link href="/static/css/menu.css">
-  <style>/* Estilos inline */</style>
+  <!-- Bootstrap 5.3 y Font Awesome 6.4 (CDN) -->
+  {% block extra_css_libs %}{% endblock %}   <!-- p. ej. DataTables -->
+  <link href="static/css/sidebar.css">
+  {% block page_css %}{% endblock %}
 </head>
 <body>
-  <!-- Menú se inyecta via menu.js -->
+  {% include '_sidebar.html' %}             <!-- menú lateral unificado -->
+  <div class="main-content">{% block content %}{% endblock %}</div>
 
-  <div class="main-content">
-    <!-- Contenido específico de la página -->
-  </div>
-
-  <script src="/static/js/menu.js"></script>
-  <script src="/static/js/[page-specific].js"></script>
+  <!-- jQuery 3.7 y Bootstrap JS (CDN) -->
+  {% block extra_js_libs %}{% endblock %}
+  <script src="static/js/sidebar.js"></script>
+  {% block page_js %}{% endblock %}         <!-- JS propio de la vista -->
 </body>
-</html>
 ```
+
+| Plantilla | Ruta | Contenido |
+|-----------|------|-----------|
+| `team.html` | `/`, `/team` | Tarjetas del equipo, alta/edición/baja de segmentadores |
+| `dashboard.html` | `/dashboard`, `/dashboard/<assignee>` | Tabla de lotes con edición inline, filtros y reportes |
+| `batch_management.html` | `/assign` | Asignación de lotes y sincronización con MongoDB |
+| `batch_assignment_v2.html` | `/batch-assignment-v2` | Interfaz alternativa de asignación |
+| `data_management.html` | `/data-management` | Carga desde JSON, exportación, borrado por filtros y estadísticas |
+| `metrics_overview.html` | `/metrics` | Métricas generales y por integrante |
+| `masks.html` | `/masks` | Máscaras encontradas en MongoDB |
+| `error.html` | — | Página de error (acceso denegado) |
+| `_sidebar.html`, `theme_system.html` | — | Parciales: menú lateral y modo claro/oscuro |
 
 ---
 
-### **2. JavaScript Modular**
+### **2. JavaScript**
 
-#### **menu.js** - Menú Global
-**Responsabilidades:**
-- Generar HTML del menú lateral
-- Toggle del menú (hamburguesa)
+La lógica de cada vista vive en el bloque `page_js` de su plantilla. Los archivos estáticos son solo dos:
+
+#### **sidebar.js** - Menú lateral unificado
+- Abrir/cerrar el sidebar (botón hamburguesa, overlay y tecla Escape)
 - Submenú colapsable de Métricas
-- Estado en localStorage
 - Accesibilidad (ARIA, teclado)
 
 **Funciones principales:**
 ```javascript
-function generateMenuHTML()
-function toggleMenu()
-function openMenu() / closeMenu()
+function toggleSidebar() / openSidebar() / closeSidebar()
 function toggleMetricsSubmenu(event)
 function handleMetricsTriggerKeydown(event)
 ```
 
----
-
-#### **dashboard.js** - Dashboard Principal
-**Responsabilidades:**
-- Cargar batches paginados
-- Inicializar DataTable
-- Edición inline (assignee, status, folder, due_date, comments)
-- Filtrado por responsable
-- Métricas en tiempo real
-
-**Funciones principales:**
-```javascript
-async function loadBatches(page, perPage)
-function initializeDataTable()
-function enableInlineEdit(element, field, batchId, value)
-async function saveInlineEdit(...)
-function filterByAssignee()
-function calculateMetrics(batches)
-```
+#### **data_management.js** - Gestión de datos
+- Carga de lotes desde JSON (`add` / `replace`)
+- Exportación a JSON y borrado por filtros
+- Estadísticas de la colección
 
 ---
 
-#### **batch_management.js** - Asignación de Batches
-**Responsabilidades:**
-- Verificar conexión MongoDB
-- Sincronizar archivos
-- Crear batches automáticamente
-- Inicializar/resetear datos
+### **3. CSS**
 
-**Funciones principales:**
-```javascript
-async function checkMongoFiles()
-async function syncBatchFiles()
-async function autoCreateBatches()
-async function initializeBatches()
-```
-
----
-
-#### **team.js** - Vista de Equipo
-**Responsabilidades:**
-- Cargar batches por responsable
-- Renderizar tarjetas de miembros
-- Gestionar modal de agregar segmentador
-- Estadísticas por persona
-
----
-
-#### **masks.js** - Visualización de Máscaras
-**Responsabilidades:**
-- Listar archivos en GridFS
-- Filtrado por nombre/fecha
-- DataTable responsive
-
----
-
-### **3. CSS Modular**
-
-#### **menu.css** - Estilos del Menú
-**Componentes:**
-- `.menu-toggle`: Botón hamburguesa
-- `.side-menu`: Menú lateral
-- `.menu-item`: Items de nivel 1
-- `.menu-item-trigger`: Trigger del submenú
-- `.submenu-container`: Contenedor colapsable
-- `.submenu-item`: Items del submenú
-- `.menu-overlay`: Overlay de cierre
-
-**Features:**
-- Glassmorphism (backdrop-filter: blur)
-- Transiciones suaves
-- ARIA/accesibilidad
-- Responsive
+- **Bootstrap 5.3** como base de estilos y componentes.
+- **`sidebar.css`**: estilos del menú lateral unificado (glassmorphism, transiciones, responsive).
+- Estilos propios de cada vista en su bloque `page_css`, y el modo claro/oscuro en `theme_system.html`.
 
 ---
 
@@ -444,7 +391,7 @@ async function initializeBatches()
     "priority": "media",           // Prioridad: baja/media/alta
     "reviewed_at": null            // Fecha de revisión
   },
-  "status": "NS",                  // NS/FS/S (No/Parcial/Segmentado)
+  "status": "NS",                  // NS/In/S (No segmentado/Incompleta/Segmentado)
   "mongo_uploaded": true,          // Si tiene archivos en MongoDB
   "comments": "Comentarios...",    // Observaciones
   "file_info": {                   // Metadatos de archivos (opcional)
@@ -458,7 +405,7 @@ async function initializeBatches()
 
 #### **Estados Posibles:**
 - `NS` (No Segmentado): Pendiente
-- `FS` (Fragmento Segmentado): Parcial
+- `In` (Incompleta): segmentación en progreso
 - `S` (Segmentado): Completado
 
 ---

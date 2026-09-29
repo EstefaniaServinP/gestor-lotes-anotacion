@@ -29,7 +29,7 @@
         "priority": "alta",
         "reviewed_at": null
       },
-      "status": "FS",
+      "status": "In",
       "mongo_uploaded": true,
       "comments": "Faltan por subir algunas máscaras"
     },
