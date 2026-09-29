@@ -1,0 +1,643 @@
+{% extends "base.html" %}
+
+{% block title %}Estadísticas Globales - Métricas{% endblock %}
+
+{% block extra_css_libs %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block page_css %}
+{% include 'theme_system.html' %}
+<style>
+    body {
+      background: var(--background);
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text-primary);
+    }
+
+    /* Título principal */
+    .dashboard-title {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 2rem;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border: 1px solid var(--border);
+    }
+
+    .dashboard-title h1 {
+      color: var(--text-primary);
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    .dashboard-title h1 i {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 1.25rem;
+    }
+
+    .dashboard-title p {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      margin: 0;
+    }
+
+    /* Grid de tarjetas compactas */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (min-width: 1200px) {
+      .charts-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (min-width: 768px) and (max-width: 1199px) {
+      .charts-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* Tarjeta compacta */
+    .chart-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 1rem;
+      height: 220px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chart-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      transform: translateY(-2px);
+      border-color: var(--primary);
+    }
+
+    .chart-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .chart-card-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .chart-kpi {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #10B981;
+    }
+
+    .chart-canvas-wrapper {
+      height: 160px;
+      position: relative;
+    }
+
+    .zoom-icon {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      width: 24px;
+      height: 24px;
+      background: rgba(16, 185, 129, 0.1);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .chart-card:hover .zoom-icon {
+      opacity: 1;
+    }
+
+    .zoom-icon i {
+      font-size: 0.75rem;
+      color: #10B981;
+    }
+
+    /* Modal de zoom */
+    .chart-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 9998;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .chart-modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .chart-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 900px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      z-index: 9999;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .chart-modal.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .chart-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .chart-modal-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #059669;
+      margin: 0;
+    }
+
+    .chart-modal-close {
+      background: #F3F4F6;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .chart-modal-close:hover {
+      background: #E5E7EB;
+      transform: rotate(90deg);
+    }
+
+    .chart-modal-close i {
+      color: #6B7280;
+    }
+
+    .chart-modal-body {
+      height: 500px;
+      position: relative;
+    }
+
+    /* KPI Summary Cards */
+    .kpi-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .kpi-card {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.15);
+    }
+
+    .kpi-value {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .kpi-value.success { color: #10B981; }
+    .kpi-value.warning { color: #F59E0B; }
+    .kpi-value.secondary { color: #94A3B8; }
+    .kpi-value.primary { color: #059669; }
+
+    .kpi-label {
+      font-size: 0.85rem;
+      color: #6B7280;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.6s ease-in;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Título Principal -->
+    <div class="dashboard-title fade-in">
+      <h1><i class="fas fa-chart-line"></i> ESTADÍSTICAS GLOBALES</h1>
+      <p>Resumen visual del rendimiento del sistema de segmentación</p>
+    </div>
+
+    <!-- KPI Summary -->
+    <div class="kpi-summary fade-in">
+      <div class="kpi-card">
+        <div class="kpi-value primary" id="totalBatches">0</div>
+        <div class="kpi-label">Total Batches</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value success" id="completedBatches">0</div>
+        <div class="kpi-label">Completados</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value warning" id="inProgressBatches">0</div>
+        <div class="kpi-label">En Progreso</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value secondary" id="pendingBatches">0</div>
+        <div class="kpi-label">Pendientes</div>
+      </div>
+    </div>
+
+    <!-- Botón de descarga CSV -->
+    <div class="text-center mb-4 fade-in">
+      <button class="btn btn-outline-light" onclick="exportMetricsCSV()" style="background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3); color: white; padding: 12px 30px; border-radius: 25px; font-weight: 600; transition: all 0.3s ease;">
+        <i class="fas fa-download"></i> Descargar Reporte CSV
+      </button>
+    </div>
+
+    <!-- Gráficas compactas -->
+    <div class="charts-grid fade-in">
+      <!-- Tarjeta 1: Distribución por Estado -->
+      <div class="chart-card" onclick="openChartModal('statusChart', 'Distribución por Estado')">
+        <div class="zoom-icon"><i class="fas fa-search-plus"></i></div>
+        <div class="chart-card-header">
+          <h6 class="chart-card-title">Distribución por Estado</h6>
+          <span class="chart-kpi" id="completionRate">0%</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="statusChartCompact"></canvas>
+        </div>
+      </div>
+
+      <!-- Tarjeta 2: Tendencia Semanal -->
+      <div class="chart-card" onclick="openChartModal('trendChart', 'Tendencia de Completados')">
+        <div class="zoom-icon"><i class="fas fa-search-plus"></i></div>
+        <div class="chart-card-header">
+          <h6 class="chart-card-title">Tendencia Semanal</h6>
+          <span class="chart-kpi" id="weeklyAvg">0</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="trendChartCompact"></canvas>
+        </div>
+      </div>
+
+      <!-- Tarjeta 3: Por Responsable -->
+      <div class="chart-card" onclick="openChartModal('teamChart', 'Distribución por Responsable')">
+        <div class="zoom-icon"><i class="fas fa-search-plus"></i></div>
+        <div class="chart-card-header">
+          <h6 class="chart-card-title">Por Responsable</h6>
+          <span class="chart-kpi" id="teamCount">0</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="teamChartCompact"></canvas>
+        </div>
+      </div>
+    </div>
+</div>
+
+<!-- Modal de Zoom -->
+<div class="chart-modal-overlay" id="chartModalOverlay" onclick="closeChartModal()"></div>
+<div class="chart-modal" id="chartModal">
+  <div class="chart-modal-header">
+    <h3 class="chart-modal-title" id="chartModalTitle">Gráfica</h3>
+    <button class="chart-modal-close" onclick="closeChartModal()">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+  <div class="chart-modal-body">
+    <canvas id="chartModalCanvas"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>
+    // Variables globales
+    let overviewStats = {};
+    let teamMetrics = [];
+    let charts = {
+      statusCompact: null,
+      trendCompact: null,
+      teamCompact: null,
+      modal: null
+    };
+
+    // Configuración minimalista para Chart.js
+    const minimalConfig = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 250 },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            padding: 8,
+            font: { size: 10 },
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          padding: 8,
+          bodyFont: { size: 11 },
+          titleFont: { size: 12, weight: 'bold' }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 9 } }
+        },
+        y: {
+          grid: { color: '#F1F5F9', drawBorder: false },
+          ticks: { font: { size: 9 } },
+          beginAtZero: true
+        }
+      },
+      elements: {
+        line: { borderWidth: 1.5, tension: 0.4 },
+        point: { radius: 2, hoverRadius: 4 }
+      }
+    };
+
+    $(document).ready(function() {
+      loadMetrics();
+
+      // Cerrar modal con ESC
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeChartModal();
+      });
+    });
+
+    function loadMetrics() {
+      console.log('🔄 Cargando métricas globales...');
+
+      $.when(
+        $.get('/api/metrics/overview'),
+        $.get('/api/metrics/team')
+      ).done(function(overviewResponse, teamResponse) {
+        if (overviewResponse[0].success && teamResponse[0].success) {
+          overviewStats = overviewResponse[0].data;
+          teamMetrics = teamResponse[0].data;
+
+          updateKPIs(overviewStats);
+          createCompactCharts();
+
+          console.log('✅ Métricas cargadas correctamente');
+        }
+      }).fail(function(xhr) {
+        console.error('❌ Error cargando métricas:', xhr);
+      });
+    }
+
+    function updateKPIs(stats) {
+      $('#totalBatches').text(stats.total_batches);
+      $('#completedBatches').text(stats.completed_batches);
+      $('#inProgressBatches').text(stats.in_progress_batches);
+      $('#pendingBatches').text(stats.pending_batches);
+
+      const completionRate = stats.total_batches > 0
+        ? ((stats.completed_batches / stats.total_batches) * 100).toFixed(1)
+        : 0;
+      $('#completionRate').text(completionRate + '%');
+
+      // KPIs adicionales
+      $('#weeklyAvg').text('~' + (stats.completed_batches / 4).toFixed(0));
+      $('#teamCount').text(teamMetrics.length + ' miembros');
+    }
+
+    function createCompactCharts() {
+      // 1. Gráfica de Distribución por Estado (Donut)
+      const statusCtx = document.getElementById('statusChartCompact').getContext('2d');
+      charts.statusCompact = new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Completados', 'En Progreso', 'Pendientes'],
+          datasets: [{
+            data: [
+              overviewStats.completed_batches,
+              overviewStats.in_progress_batches,
+              overviewStats.pending_batches
+            ],
+            backgroundColor: ['#10B981', '#F59E0B', '#94A3B8'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          ...minimalConfig,
+          cutout: '65%',
+          plugins: {
+            ...minimalConfig.plugins,
+            legend: { display: false }
+          }
+        }
+      });
+
+      // 2. Gráfica de Tendencia (Line)
+      const trendCtx = document.getElementById('trendChartCompact').getContext('2d');
+      charts.trendCompact = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+          labels: ['S1', 'S2', 'S3', 'S4'],
+          datasets: [{
+            label: 'Completados',
+            data: [12, 18, 15, overviewStats.completed_batches || 22],
+            borderColor: '#10B981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            fill: true
+          }]
+        },
+        options: {
+          ...minimalConfig,
+          plugins: {
+            ...minimalConfig.plugins,
+            legend: { display: false }
+          }
+        }
+      });
+
+      // 3. Gráfica por Responsable (Bar horizontal)
+      const teamCtx = document.getElementById('teamChartCompact').getContext('2d');
+
+      // Filtrar "Sin asignar" y ordenar por completados
+      const filteredTeam = teamMetrics
+        .filter(m => m.assignee !== 'Sin asignar')
+        .sort((a, b) => b.completed - a.completed)
+        .slice(0, 5);
+
+      charts.teamCompact = new Chart(teamCtx, {
+        type: 'bar',
+        data: {
+          labels: filteredTeam.map(m => m.assignee),
+          datasets: [{
+            label: 'Completados',
+            data: filteredTeam.map(m => m.completed),
+            backgroundColor: '#10B981',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          ...minimalConfig,
+          indexAxis: 'y',
+          plugins: {
+            ...minimalConfig.plugins,
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    function openChartModal(chartType, title) {
+      const overlay = document.getElementById('chartModalOverlay');
+      const modal = document.getElementById('chartModal');
+      const modalTitle = document.getElementById('chartModalTitle');
+      const modalCanvas = document.getElementById('chartModalCanvas');
+
+      modalTitle.textContent = title;
+
+      // Mostrar modal con animación
+      overlay.classList.add('active');
+      modal.classList.add('active');
+
+      // Crear gráfica ampliada
+      setTimeout(() => {
+        if (charts.modal) {
+          charts.modal.destroy();
+        }
+
+        const ctx = modalCanvas.getContext('2d');
+
+        if (chartType === 'statusChart') {
+          charts.modal = new Chart(ctx, {
+            type: 'doughnut',
+            data: charts.statusCompact.data,
+            options: {
+              ...minimalConfig,
+              cutout: '60%',
+              plugins: {
+                legend: {
+                  display: true,
+                  position: 'bottom',
+                  labels: { padding: 15, font: { size: 13 } }
+                }
+              }
+            }
+          });
+        } else if (chartType === 'trendChart') {
+          charts.modal = new Chart(ctx, {
+            type: 'line',
+            data: charts.trendCompact.data,
+            options: minimalConfig
+          });
+        } else if (chartType === 'teamChart') {
+          charts.modal = new Chart(ctx, {
+            type: 'bar',
+            data: charts.teamCompact.data,
+            options: {
+              ...minimalConfig,
+              indexAxis: 'y'
+            }
+          });
+        }
+      }, 100);
+    }
+
+    function closeChartModal() {
+      const overlay = document.getElementById('chartModalOverlay');
+      const modal = document.getElementById('chartModal');
+
+      overlay.classList.remove('active');
+      modal.classList.remove('active');
+
+      // Destruir gráfica del modal
+      if (charts.modal) {
+        charts.modal.destroy();
+        charts.modal = null;
+      }
+    }
+
+    function exportMetricsCSV() {
+      // Por ahora sin filtros, exporta todo
+      // Puedes agregar un modal para seleccionar filtros si lo deseas
+      const url = '/api/metrics/export';
+
+      console.log('📥 Descargando CSV de métricas...');
+
+      // Crear link temporal para descargar
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `progress_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Notificación
+      setTimeout(() => {
+        alert('✅ Descarga iniciada. Revisa tu carpeta de descargas.');
+      }, 500);
+    }
+</script>
+{% endblock %}

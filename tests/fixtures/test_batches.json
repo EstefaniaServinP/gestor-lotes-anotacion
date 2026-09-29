@@ -1,0 +1,62 @@
+[
+  {
+    "id": "batch_001",
+    "assignee": "Segmentador 1",
+    "folder": "./data/imagenes/batch_001",
+    "tasks": [
+      "segmentar",
+      "subir_mascaras",
+      "revisar"
+    ],
+    "metadata": {
+      "assigned_at": "2026-04-17",
+      "due_date": "2026-04-25",
+      "priority": "alta",
+      "reviewed_at": null
+    },
+    "status": "NS",
+    "mongo_uploaded": false,
+    "comments": "Batch de prueba 1 - pendiente de segmentación",
+    "specification": "Pieza de prueba (defecto_a OK, defecto_b NOK)"
+  },
+  {
+    "id": "batch_002",
+    "assignee": "Segmentador 2",
+    "folder": "./data/imagenes/batch_002",
+    "tasks": [
+      "segmentar",
+      "subir_mascaras",
+      "revisar"
+    ],
+    "metadata": {
+      "assigned_at": "2026-04-17",
+      "due_date": "2026-04-25",
+      "priority": "media",
+      "reviewed_at": null
+    },
+    "status": "FS",
+    "mongo_uploaded": false,
+    "comments": "Batch de prueba 2 - segmentación en progreso",
+    "specification": "Pieza de prueba (defecto_a OK, defecto_b NOK)"
+  },
+  {
+    "id": "batch_003",
+    "assignee": "Segmentador 3",
+    "folder": "./data/imagenes/batch_003",
+    "tasks": [
+      "segmentar",
+      "subir_mascaras",
+      "revisar"
+    ],
+    "metadata": {
+      "assigned_at": "2026-04-15",
+      "due_date": "2026-04-22",
+      "priority": "media",
+      "reviewed_at": "2026-04-17"
+    },
+    "status": "S",
+    "mongo_uploaded": true,
+    "comments": "Batch de prueba 3 - segmentación completada",
+    "specification": "Pieza de prueba (defecto_a OK, defecto_b NOK)"
+  }
+]

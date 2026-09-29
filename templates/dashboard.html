@@ -1,0 +1,3490 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard de Segmentación{% endblock %}
+
+{% block extra_css_libs %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+  <!-- Modal para Generar Reportes -->
+  <div class="modal fade" id="exportReportModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">
+            <i class="fas fa-file-download"></i> Generar Reporte
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Seleccione el formato para el reporte:</p>
+          <div class="d-grid gap-2">
+            <button class="btn btn-success" onclick="exportReport('excel'); $('#exportReportModal').modal('hide');">
+              <i class="fas fa-file-excel me-2"></i> Exportar a Excel (.xlsx)
+            </button>
+            <button class="btn btn-info" onclick="exportReport('csv'); $('#exportReportModal').modal('hide');">
+              <i class="fas fa-file-csv me-2"></i> Exportar a CSV
+            </button>
+          </div>
+          <div class="alert alert-info mt-3 mb-0">
+            <i class="fas fa-info-circle"></i>
+            <strong>Nota:</strong> El reporte incluirá:
+            <ul class="mb-0 mt-2">
+              <li>Resumen General con métricas globales</li>
+              <li>Métricas por Segmentador</li>
+              <li>Batches Detallados con autofiltros</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+{% endblock %}
+
+{% block page_css %}
+{% include 'theme_system.html' %}
+<style>
+    body {
+      background: var(--background);
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text-primary);
+    }
+    
+    .card {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      backdrop-filter: blur(10px);
+    }
+
+    .navbar {
+      background: var(--surface);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Navbar con gradiente solo en modo claro */
+    body:not([data-theme="dark"]) .navbar {
+      background: linear-gradient(135deg, #059669 0%, #34D399 100%);
+    }
+
+    /* Header del Dashboard - Estilo Moderno */
+    .dashboard-title {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .dashboard-title h1 {
+      color: var(--text-primary);
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .dashboard-title h1 i {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 1.25rem;
+    }
+
+    .dashboard-title p {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      margin: 0;
+      font-weight: 400;
+    }
+    
+    /* Asegurar que el contenido principal tenga el z-index correcto */
+    .main-content {
+      position: relative;
+      z-index: 1;
+    }
+    
+    .btn-primary {
+      background: var(--primary);
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+
+    .btn-outline-light {
+      border: 2px solid var(--border);
+      color: var(--text-primary);
+      background: var(--surface);
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .btn-outline-light:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.9);
+      color: #FFFFFF;
+      transform: translateY(-1px);
+    }
+    
+    .btn-outline-danger {
+      border: 2px solid #FECACA;
+      color: #DC2626;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-outline-danger:hover {
+      background: linear-gradient(135deg, #FECACA 0%, #FCA5A5 100%);
+      border-color: #FCA5A5;
+      color: #991B1B;
+    }
+    
+    .status-pendiente { 
+      background: linear-gradient(135deg, #FDE68A 0%, #FEF3C7 100%);
+      color: #92400E;
+      border-radius: 6px;
+      padding: 4px 8px;
+    }
+    
+    .status-en-progreso { 
+      background: linear-gradient(135deg, #BFDBFE 0%, #DBEAFE 100%);
+      color: #1E40AF;
+      border-radius: 6px;
+      padding: 4px 8px;
+    }
+    
+    .status-completado { 
+      background: linear-gradient(135deg, #A7F3D0 0%, #D1FAE5 100%);
+      color: #065F46;
+      border-radius: 6px;
+      padding: 4px 8px;
+    }
+    
+    .status-select, .due-date-input {
+      transition: all 0.3s ease;
+      border-radius: 6px;
+      border: 2px solid #E9D8FD;
+    }
+    
+    .status-select:focus, .due-date-input:focus {
+      box-shadow: 0 0 0 0.2rem rgba(183, 148, 246, 0.25);
+      border-color: #B794F6;
+      background: rgba(233, 216, 253, 0.1);
+    }
+    
+    .saving {
+      background: linear-gradient(135deg, #FDE68A 0%, #FEF3C7 100%) !important;
+      border-color: #F59E0B !important;
+    }
+    
+    .saved {
+      background: linear-gradient(135deg, #A7F3D0 0%, #D1FAE5 100%) !important;
+      border-color: #10B981 !important;
+    }
+    
+    .error {
+      background: linear-gradient(135deg, #FECACA 0%, #FEE2E2 100%) !important;
+      border-color: #EF4444 !important;
+    }
+    
+    /* Estilos para botones de acción */
+    .action-buttons .btn {
+      margin-right: 2px;
+      transition: all 0.3s ease;
+      border-radius: 6px;
+    }
+    
+    .action-buttons .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(183, 148, 246, 0.3);
+    }
+    
+    .btn-outline-danger:hover {
+      background: linear-gradient(135deg, #FECACA 0%, #FCA5A5 100%);
+      border-color: #FCA5A5;
+      color: #991B1B;
+    }
+    
+    /* Estilos para el selector de revisión */
+    .review-select {
+      transition: all 0.3s ease;
+      border-radius: 6px;
+      border: 2px solid #E9D8FD;
+    }
+    
+    .review-select:focus {
+      box-shadow: 0 0 0 0.2rem rgba(183, 148, 246, 0.25);
+      border-color: #B794F6;
+      background: rgba(233, 216, 253, 0.1);
+    }
+    
+    .review-select option[value="aprobado"] {
+      background-color: #D1FAE5;
+      color: #065F46;
+    }
+    
+    .review-select option[value="no_aprobado"] {
+      background-color: #FEE2E2;
+      color: #991B1B;
+    }
+    
+    /* Estilo para filas de batches aprobados que aún están en cola */
+    .table-success-light {
+      background-color: rgba(209, 250, 229, 0.3) !important;
+      border-left: 4px solid #10B981 !important;
+    }
+    
+    .table-success-light td {
+      border-color: rgba(16, 185, 129, 0.2) !important;
+    }
+    
+    /* Estilos para los campos de fecha */
+    input[type="date"] {
+      position: relative;
+    }
+    
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      filter: invert(0.8);
+    }
+    
+    /* Estilos para los botones de fecha rápida */
+    .btn-group-sm .btn {
+      font-size: 0.75rem;
+    }
+    
+    /* Validación visual mejorada */
+    .form-control.is-valid {
+      border-color: #28a745;
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%2328a745' d='m2.3 6.73.4.34.4-.34L7 2.67l-.34-.4L3.3 5.67l-1.6-1.6-.34.4z'/%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right calc(0.375em + 0.1875rem) center;
+      background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    }
+    
+    .form-control.is-invalid {
+      border-color: #dc3545;
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath d='m5.8 4.6 1.4 1.4M7.2 5.4 5.8 6.8M5.8 7.2l1.4-1.4'/%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right calc(0.375em + 0.1875rem) center;
+      background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    }
+
+    /* Estilos para el dropdown de herramientas */
+    .dropdown-menu {
+      min-width: 250px;
+      box-shadow: 0 8px 25px rgba(183, 148, 246, 0.2);
+      border: none;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(183, 148, 246, 0.2);
+    }
+    
+    .dropdown-header {
+      color: #B794F6;
+      font-weight: bold;
+      font-size: 0.9rem;
+      text-shadow: 0 1px 2px rgba(183, 148, 246, 0.2);
+    }
+    
+    .dropdown-item {
+      padding: 0.7rem 1.2rem;
+      transition: all 0.3s ease;
+      border-radius: 8px;
+      margin: 2px 8px;
+    }
+    
+    .dropdown-item:hover {
+      background: linear-gradient(135deg, #E9D8FD 0%, #FED7E2 100%);
+      color: #8B5CF6;
+      transform: translateX(5px);
+    }
+    
+    .dropdown-item i {
+      width: 20px;
+      margin-right: 10px;
+      color: #B794F6;
+    }
+    
+    .dropdown-toggle::after {
+      border-top-color: rgba(255, 255, 255, 0.8);
+    }
+    
+    /* Estilos para las tarjetas de estadísticas */
+    .card-title {
+      background: linear-gradient(135deg, #B794F6, #F687B3);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 600;
+    }
+
+
+    
+    .text-primary {
+      color: #B794F6 !important;
+    }
+    
+    .text-secondary {
+      color: #A78BFA !important;
+    }
+    
+    /* Estilos para DataTables */
+    .table {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    
+    .table thead th {
+      background: linear-gradient(135deg, #E9D8FD 0%, #FED7E2 100%);
+      border: none;
+      color: #6B46C1;
+      font-weight: 600;
+      padding: 1rem;
+    }
+    
+    .table tbody tr:hover {
+      background: linear-gradient(135deg, rgba(233, 216, 253, 0.3) 0%, rgba(254, 215, 226, 0.3) 100%);
+    }
+    
+    /* Notificaciones */
+    .notification {
+      border-radius: 10px;
+      border: none;
+      backdrop-filter: blur(10px);
+    }
+    
+    .notification.alert-success {
+      background: linear-gradient(135deg, #A7F3D0 0%, #D1FAE5 100%);
+      color: #065F46;
+    }
+    
+    .notification.alert-info {
+      background: linear-gradient(135deg, #BFDBFE 0%, #DBEAFE 100%);
+      color: #1E40AF;
+    }
+    
+    .notification.alert-warning {
+      background: linear-gradient(135deg, #FDE68A 0%, #FEF3C7 100%);
+      color: #92400E;
+    }
+    
+    .notification.alert-danger {
+      background: linear-gradient(135deg, #FECACA 0%, #FEE2E2 100%);
+      color: #991B1B;
+    }
+
+    /* Estilos para la fila de filtros */
+    .filter-row th {
+      background: linear-gradient(135deg, #F3E8FF 0%, #FCE7F3 100%);
+      padding: 0.5rem;
+      vertical-align: middle;
+    }
+
+    .filter-input, .filter-select {
+      font-size: 0.85rem;
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid rgba(107, 70, 193, 0.3);
+      background: white;
+    }
+
+    .filter-input:focus, .filter-select:focus {
+      border-color: #B794F6;
+      box-shadow: 0 0 0 0.2rem rgba(183, 148, 246, 0.25);
+    }
+
+    .filter-input::placeholder {
+      color: rgba(107, 70, 193, 0.5);
+      font-size: 0.8rem;
+    }
+
+    /* Modo Asignar Batch */
+    #toggleAssignMode {
+      transition: all 0.3s ease;
+    }
+
+    #toggleAssignMode.active {
+      background: linear-gradient(135deg, #059669 0%, #34D399 100%);
+      color: white;
+      border-color: #059669;
+      box-shadow: 0 4px 15px rgba(5, 150, 105, 0.4);
+    }
+
+    .assign-mode-active {
+      background-color: #ecfdf5 !important;
+    }
+
+    .assignee-select {
+      min-width: 150px;
+      font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Título Principal del Dashboard -->
+    <div class="dashboard-title">
+      <h1><i class="fas fa-chart-line"></i> DASHBOARD GENERAL</h1>
+      <p>Sistema de Gestión de Batches de Segmentación</p>
+
+      <!-- Botón Modo Asignar y Toggle Tema -->
+      <div class="mt-3 d-flex justify-content-center align-items-center gap-3 flex-wrap">
+        <button id="toggleAssignMode" class="btn btn-outline-light btn-lg">
+          <i class="fas fa-user-plus"></i> <span id="assignModeText">Activar Modo Asignar Batch</span>
+        </button>
+
+        <button class="btn btn-success btn-lg" onclick="$('#exportReportModal').modal('show')">
+          <i class="fas fa-file-download"></i> Generar Reporte
+        </button>
+
+        <!-- Toggle de Tema -->
+        <div class="d-flex align-items-center gap-2">
+          <button class="theme-toggle-btn" onclick="toggleTheme()">
+            <div class="theme-toggle-slider">
+              <i class="fas fa-sun theme-toggle-icon"></i>
+            </div>
+          </button>
+          <span class="theme-label text-white">Modo Claro</span>
+        </div>
+      </div>
+
+      <div id="assignModeStatus" class="mt-2 text-white" style="display: none;">
+        <i class="fas fa-check-circle"></i> <strong>Modo Asignación Activo</strong> - Haz clic en "Responsable" para asignar batches
+      </div>
+    </div>
+    
+    <!-- Tabla de Batches -->
+    <div class="card">
+      <div class="card-body">
+        <table id="batchesTable" class="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th>Batch ID</th>
+              <th>Responsable</th>
+              <th>Cargado a Mongo</th>
+              <th>Estatus Segmentación</th>
+              <th>Fecha Asignación</th>
+              <th>Revisión</th>
+              <th>Comentarios</th>
+              <th>Acciones</th>
+            </tr>
+            <!-- Fila de filtros -->
+            <tr class="filter-row">
+              <th><input type="text" class="form-control form-control-sm filter-input" placeholder="Filtrar Batch ID..." data-column="0"></th>
+              <th>
+                <select class="form-select form-select-sm filter-select" data-column="1">
+                  <option value="">Todos</option>
+                  {% for member in crew %}
+                  <option value="{{ member }}">{{ member }}</option>
+                  {% endfor %}
+                </select>
+              </th>
+              <th>
+                <select class="form-select form-select-sm filter-select" data-column="2">
+                  <option value="">Todos</option>
+                  <option value="Sí">Sí</option>
+                  <option value="No">No</option>
+                </select>
+              </th>
+              <th>
+                <select class="form-select form-select-sm filter-select" data-column="3">
+                  <option value="">Todos</option>
+                  <option value="NS - No Segmentado">NS - No Segmentado</option>
+                  <option value="In - Incompleta">In - Incompleta</option>
+                  <option value="S - Segmentado">S - Segmentado</option>
+                </select>
+              </th>
+              <th><input type="text" class="form-control form-control-sm filter-input" placeholder="Filtrar fecha..." data-column="4"></th>
+              <th>
+                <select class="form-select form-select-sm filter-select" data-column="5">
+                  <option value="">Todos</option>
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="Aprobado">Aprobado</option>
+                  <option value="No Aprobado">No Aprobado</option>
+                </select>
+              </th>
+              <th><input type="text" class="form-control form-control-sm filter-input" placeholder="Filtrar comentarios..." data-column="6"></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Nuevo Batch -->
+  <div class="modal fade" id="newBatchModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Crear Nuevo Batch</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="newBatchForm">
+            <div class="row">
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">Batch ID</label>
+                  <select class="form-select" id="batch_id" name="batch_id" required>
+                    <option value="">Seleccionar batch pendiente...</option>
+                    <!-- Los batches se cargarán dinámicamente -->
+                  </select>
+                  <div class="form-text">
+                    <i class="fas fa-list"></i> 
+                    Selecciona un batch pendiente de segmentación
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">Responsable</label>
+                  <select class="form-select" id="assignee" name="assignee" required>
+                    <option value="">Seleccionar...</option>
+                    {% for member in crew %}
+                    <option value="{{ member }}">{{ member }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">Carpeta de Imágenes</label>
+                  <input type="text" class="form-control" id="folder" name="folder" required>
+                  <div class="form-text">
+                    <i class="fas fa-folder"></i> 
+                    Nombre/ruta de la carpeta
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Fecha Límite</label>
+                  <input type="date" class="form-control" id="due_date" name="due_date">
+                  <div class="form-text">
+                    <i class="fas fa-calendar"></i> 
+                    Fecha límite para completar el batch (opcional)
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Prioridad</label>
+                  <select class="form-select" id="priority" name="priority">
+                    <option value="baja">Baja</option>
+                    <option value="media" selected>Media</option>
+                    <option value="alta">Alta</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Comentarios</label>
+              <textarea class="form-control" id="comments" name="comments" rows="3" placeholder="Comentarios adicionales sobre el batch..."></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-warning btn-sm me-auto" onclick="debugInfo()">
+            <i class="fas fa-bug"></i> Debug Info
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="createBatch()">Crear Batch</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Editar Batch -->
+  <div class="modal fade" id="editBatchModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Editar Batch</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editBatchForm">
+            <input type="hidden" name="batch_id">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Responsable</label>
+                  <select class="form-select" name="assignee">
+                    {% for member in crew %}
+                    <option value="{{ member }}">{{ member }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Carpeta de Imágenes</label>
+                  <input type="text" class="form-control" name="folder">
+                  <div class="form-text">
+                    <i class="fas fa-folder"></i> 
+                    Ruta o nombre de la carpeta con las imágenes a procesar
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">Estado</label>
+                  <select class="form-select" name="status">
+                    <option value="pendiente">Pendiente</option>
+                    <option value="en-progreso">En Progreso</option>
+                    <option value="completado">Completado</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">Fecha Límite</label>
+                  <input type="date" class="form-control" name="due_date">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">Prioridad</label>
+                  <select class="form-select" name="priority">
+                    <option value="baja">Baja</option>
+                    <option value="media">Media</option>
+                    <option value="alta">Alta</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Comentarios</label>
+              <textarea class="form-control" name="comments" rows="3"></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="updateBatch()">Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Métricas del Equipo -->
+  <div class="modal fade" id="teamMetricsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-chart-bar"></i> Métricas del Equipo de Segmentación
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="teamMetricsContent">
+            <!-- El contenido se genera dinámicamente -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" onclick="exportMetrics()">
+            <i class="fas fa-download"></i> Exportar Métricas
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js_libs %}
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}
+
+{% block page_js %}
+<script>
+    let batchesTable;
+    let batches = [];
+    let filterAssignee = '{{ filter_assignee or "" }}';
+    let assignModeActive = false; // Modo asignación activo/inactivo
+    const CREW_MEMBERS = {{ crew | tojson | safe }}; // Lista de segmentadores
+    
+    // Funciones del menú hamburguesa elegante
+    function toggleMenu() {
+      const menu = document.getElementById('sideMenu');
+      const overlay = document.getElementById('menuOverlay');
+      const toggle = document.getElementById('menuToggle');
+      
+      menu.classList.toggle('open');
+      overlay.classList.toggle('show');
+      toggle.classList.toggle('active');
+    }
+    
+    function closeMenu() {
+      const menu = document.getElementById('sideMenu');
+      const overlay = document.getElementById('menuOverlay');
+      const toggle = document.getElementById('menuToggle');
+      
+      menu.classList.remove('open');
+      overlay.classList.remove('show');
+      toggle.classList.remove('active');
+    }
+    
+    // Función para mostrar notificaciones
+    function showNotification(message, type = 'info') {
+      // Crear el contenedor de notificaciones si no existe
+      if (!document.getElementById('notificationContainer')) {
+        const container = document.createElement('div');
+        container.id = 'notificationContainer';
+        container.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 9999;
+          max-width: 400px;
+        `;
+        document.body.appendChild(container);
+      }
+      
+      // Crear la notificación
+      const notification = document.createElement('div');
+      const alertClass = type === 'success' ? 'alert-success' : 
+                        type === 'error' ? 'alert-danger' : 
+                        type === 'warning' ? 'alert-warning' : 'alert-info';
+      
+      notification.className = `alert ${alertClass} alert-dismissible fade show`;
+      notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 
+                           type === 'error' ? 'exclamation-circle' : 
+                           type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      
+      // Agregar al contenedor
+      document.getElementById('notificationContainer').appendChild(notification);
+      
+      // Auto-remover después de 5 segundos
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.remove();
+        }
+      }, 5000);
+    }
+
+    $(document).ready(function() {
+      // Inicializar batches desde JSON si es necesario
+      initBatches();
+
+      // Sincronizar máscaras antes de cargar batches
+      syncMasksWithBatches().then(() => {
+        // Cargar datos después de sincronizar
+        loadBatches();
+      }).catch(err => {
+        console.error('⚠️ Error sincronizando máscaras, cargando batches de todas formas:', err);
+        // Cargar batches aunque falle la sincronización
+        loadBatches();
+      });
+      
+      // Inicializar campos del formulario
+      initializeFormFields();
+      
+      // Inicializar DataTable
+      batchesTable = $('#batchesTable').DataTable({
+        responsive: true,
+        pageLength: 25,
+        language: {
+          url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+        },
+        columnDefs: [
+          { orderable: false, targets: -1 }
+        ],
+        orderCellsTop: true,
+        fixedHeader: true
+      });
+
+      // Inicializar filtros de columnas
+      initializeColumnFilters();
+
+      // NO aplicar filtro de DataTables aquí porque YA se filtró en updateTable()
+      // El filtrado correcto ya se hace en las líneas 1083-1098 de updateTable()
+
+      // Botón para activar/desactivar Modo Asignar Batch
+      $('#toggleAssignMode').on('click', function() {
+        assignModeActive = !assignModeActive;
+
+        if (assignModeActive) {
+          // Activar modo asignación
+          $(this).addClass('active');
+          $('#assignModeText').text('Desactivar Modo Asignar Batch');
+          $('#assignModeStatus').show();
+          showNotification('Modo Asignación Activo - Ahora puedes asignar batches desde la columna Responsable', 'success');
+        } else {
+          // Desactivar modo asignación
+          $(this).removeClass('active');
+          $('#assignModeText').text('Activar Modo Asignar Batch');
+          $('#assignModeStatus').hide();
+          showNotification('Modo Asignación Desactivado', 'info');
+        }
+
+        // Recargar tabla para mostrar/ocultar dropdowns
+        updateTable();
+      });
+
+      // Evento delegado para cambios en assignee-select
+      $(document).on('change', '.assignee-select', function() {
+        const batchId = $(this).data('batch-id');
+        const newAssignee = $(this).val();
+
+        console.log(`Asignando batch ${batchId} a ${newAssignee || 'Sin asignar'}`);
+
+        // Guardar cambio automáticamente
+        const updateData = {
+          assignee: newAssignee || null,
+          metadata: {
+            assigned_at: newAssignee ? new Date().toISOString().split('T')[0] : null
+          }
+        };
+
+        $.ajax({
+          url: `/api/batches/${batchId}`,
+          method: 'PUT',
+          contentType: 'application/json',
+          data: JSON.stringify(updateData),
+          success: function(response) {
+            // Actualizar datos locales
+            const batch = batches.find(b => b.id === batchId);
+            if (batch) {
+              batch.assignee = newAssignee || null;
+              batch.metadata.assigned_at = updateData.metadata.assigned_at;
+            }
+
+            showNotification(`✅ Batch ${batchId} asignado a ${newAssignee || 'Sin asignar'}`, 'success');
+          },
+          error: function(xhr) {
+            showNotification(`❌ Error asignando batch: ${xhr.responseJSON?.error || 'Error desconocido'}`, 'error');
+          }
+        });
+      });
+
+      // Evento para cuando se abra el modal de nuevo batch
+      $('#newBatchModal').on('show.bs.modal', function() {
+        // Asegurar que la fecha mínima esté actualizada
+        const today = new Date().toISOString().split('T')[0];
+        $('#due_date').attr('min', today);
+        
+        // Limpiar cualquier validación previa
+        $('#newBatchForm .form-control').removeClass('is-invalid is-valid');
+        $('#newBatchForm .invalid-feedback').remove();
+        
+        // Cargar batches pendientes
+        loadMissingBatches();
+        
+        console.log('📅 Modal de nuevo batch abierto - fecha mínima actualizada:', today);
+      });
+    });
+
+    function initBatches() {
+      console.log('🔄 Verificando inicialización de batches...');
+      $.post('/api/init-batches')
+        .done(function(response) {
+          console.log('✅ Resultado de inicialización:', response);
+          if (response.loaded) {
+            showNotification(`${response.loaded_count} nuevos batches cargados desde archivo`, 'success');
+          } else if (response.existing_count > 0) {
+            console.log(`📊 ${response.existing_count} batches ya existentes - no se requiere inicialización`);
+          }
+        })
+        .fail(function(xhr) {
+          console.error('❌ Error en inicialización:', xhr.responseJSON);
+          showNotification('Error verificando inicialización de batches: ' + (xhr.responseJSON?.error || 'Error desconocido'), 'warning');
+        });
+    }
+
+    // Función para inicializar los filtros de columnas
+    function initializeColumnFilters() {
+      console.log('🔧 Inicializando filtros de columnas...');
+
+      // Filtros de texto (Batch ID, Fecha, Comentarios)
+      $('.filter-input').on('keyup change', function() {
+        const columnIndex = $(this).data('column');
+        const searchValue = $(this).val();
+
+        console.log(`🔍 Filtrando columna ${columnIndex} con valor: "${searchValue}"`);
+        batchesTable.column(columnIndex).search(searchValue).draw();
+      });
+
+      // Filtros de select (Responsable, Cargado a Mongo, Estatus, Revisión)
+      $('.filter-select').on('change', function() {
+        const columnIndex = $(this).data('column');
+        const searchValue = $(this).val();
+
+        console.log(`🔍 Filtrando columna ${columnIndex} con valor: "${searchValue}"`);
+        batchesTable.column(columnIndex).search(searchValue).draw();
+      });
+
+      console.log('✅ Filtros de columnas inicializados');
+    }
+
+    // Función para cargar batches pendientes de segmentación
+    function loadMissingBatches() {
+      console.log('🔄 Cargando batches pendientes...');
+      const batchSelect = $('#batch_id');
+      
+      // Mostrar loading
+      batchSelect.html('<option value="">Cargando batches pendientes...</option>');
+      batchSelect.prop('disabled', true);
+      
+      $.get('/api/missing-batches')
+        .done(function(response) {
+          console.log('✅ Batches pendientes obtenidos:', response);
+          
+          if (response.success && response.missing_batches) {
+            // Limpiar el select
+            batchSelect.html('<option value="">Seleccionar batch pendiente...</option>');
+            
+            // Agregar los batches pendientes
+            response.missing_batches.forEach(function(batchId) {
+              batchSelect.append(`<option value="${batchId}">${batchId}</option>`);
+            });
+            
+            console.log(`📊 ${response.total_missing} batches pendientes cargados en el dropdown`);
+            showNotification(`${response.total_missing} batches pendientes disponibles para asignar`, 'info');
+          } else {
+            batchSelect.html('<option value="">No hay batches pendientes</option>');
+            console.warn('⚠️ No se encontraron batches pendientes');
+          }
+        })
+        .fail(function(xhr) {
+          console.error('❌ Error cargando batches pendientes:', xhr.responseJSON);
+          batchSelect.html('<option value="">Error cargando batches</option>');
+          showNotification('Error cargando batches pendientes: ' + (xhr.responseJSON?.error || 'Error desconocido'), 'danger');
+        })
+        .always(function() {
+          // Habilitar el select
+          batchSelect.prop('disabled', false);
+        });
+    }
+
+    // Función para inicializar campos del formulario
+    function initializeFormFields() {
+      // Establecer fecha actual como mínima para el campo de fecha límite
+      const today = new Date().toISOString().split('T')[0];
+      $('#due_date').attr('min', today);
+      
+      // Agregar botón para establecer fecha límite automáticamente
+      addDateHelpers();
+      
+      // Agregar validación en tiempo real
+      addFormValidation();
+      
+      console.log('📅 Campos del formulario inicializados - fecha mínima:', today);
+    }
+
+    // Función para agregar helpers de fecha
+    function addDateHelpers() {
+      // Agregar botones de fecha rápida
+      const dueDateContainer = $('#due_date').parent();
+      const quickDateButtons = `
+        <div class="mt-2">
+          <small class="text-muted">Fecha rápida:</small>
+          <div class="btn-group btn-group-sm mt-1" role="group">
+            <button type="button" class="btn btn-outline-secondary" onclick="setQuickDate(1)">+1 día</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="setQuickDate(3)">+3 días</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="setQuickDate(7)">+1 semana</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="setQuickDate(14)">+2 semanas</button>
+            <button type="button" class="btn btn-outline-warning" onclick="clearDate()">Limpiar</button>
+          </div>
+        </div>
+      `;
+      dueDateContainer.append(quickDateButtons);
+    }
+
+    // Función para establecer fechas rápidas
+    function setQuickDate(days) {
+      const date = new Date();
+      date.setDate(date.getDate() + days);
+      const formattedDate = date.toISOString().split('T')[0];
+      $('#due_date').val(formattedDate);
+      console.log(`📅 Fecha establecida: +${days} días = ${formattedDate}`);
+    }
+
+    // Función para limpiar fecha
+    function clearDate() {
+      $('#due_date').val('');
+      console.log('📅 Fecha limpiada');
+    }
+
+    // Función para agregar validación del formulario
+    function addFormValidation() {
+      // Validación del Batch ID en tiempo real (ahora es un select)
+      $('#batch_id').on('change', function() {
+        const value = $(this).val().trim();
+        const $feedback = $(this).next('.invalid-feedback');
+        
+        // Remover feedback anterior
+        $feedback.remove();
+        $(this).removeClass('is-invalid is-valid');
+        
+        if (value) {
+          // Verificar si ya existe en la tabla actual
+          const exists = batches.find(b => b.id === value);
+          
+          if (exists) {
+            $(this).addClass('is-invalid');
+            $(this).after('<div class="invalid-feedback">Este Batch ya está asignado</div>');
+          } else {
+            $(this).addClass('is-valid');
+          }
+        }
+      });
+    }
+
+    // Función para resetear el formulario de nuevo batch
+    function resetNewBatchForm() {
+      // Reset básico del formulario
+      document.getElementById('newBatchForm').reset();
+      
+      // Limpiar clases de validación
+      $('#newBatchForm .form-control').removeClass('is-invalid is-valid');
+      $('#newBatchForm .invalid-feedback').remove();
+      
+      // Restablecer fecha mínima
+      const today = new Date().toISOString().split('T')[0];
+      $('#due_date').attr('min', today);
+      
+      console.log('📋 Formulario de nuevo batch reseteado');
+    }
+
+    // Función para sincronizar máscaras con batches
+    function syncMasksWithBatches() {
+      console.log('🔄 Sincronizando máscaras con batches...');
+      return new Promise((resolve, reject) => {
+        $.ajax({
+          url: '/api/sync-batch-files',
+          method: 'POST',
+          contentType: 'application/json',
+          timeout: 30000, // 30 segundos de timeout
+          success: function(response) {
+            if (response.success) {
+              console.log(`✅ Sincronización exitosa: ${response.batches_updated} batches actualizados`);
+              console.log(`📊 Total archivos encontrados: ${response.total_files_found}`);
+              resolve(response);
+            } else {
+              console.warn('⚠️ Sincronización completada con errores:', response);
+              resolve(response); // Resolver de todas formas para no bloquear
+            }
+          },
+          error: function(xhr, status, error) {
+            console.error('❌ Error en sincronización:', error);
+            console.error('Status:', status);
+            console.error('Response:', xhr.responseJSON);
+            reject(error);
+          }
+        });
+      });
+    }
+
+
+    function loadBatches() {
+      console.log('🔄 Cargando batches...');
+      $.get('/api/batches?per_page=1000')
+        .done(function(data) {
+          // Handle new paginated response format
+          if (data.batches) {
+            batches = data.batches;
+            console.log('✅ Batches cargados:', batches.length, 'de', data.pagination.total);
+          } else {
+            // Fallback for old format
+            batches = data;
+            console.log('✅ Batches cargados:', batches.length);
+          }
+          console.log('📊 Datos recibidos:', batches);
+          updateStats();
+          updateTable(); // Cargar la tabla
+        })
+        .fail(function(xhr) {
+          console.error('❌ Error cargando batches:', xhr);
+          alert('Error cargando batches: ' + (xhr.responseJSON?.error || 'Error desconocido'));
+        });
+    }
+
+    function updateStats() {
+      const total = batches.length;
+      // Usar el nuevo sistema de estados: S, In, NS
+      const completed = batches.filter(b => b.status === 'S').length; // S = Segmentado (completado)
+      const inProgress = batches.filter(b => b.status === 'In').length; // In = Incompletas
+      const pending = batches.filter(b => b.status === 'NS').length; // NS = No Segmentado (pendiente)
+
+      // Verificar que la suma sea correcta
+      const calculatedTotal = completed + inProgress + pending;
+      if (calculatedTotal !== total) {
+        console.warn(`⚠️ INCONSISTENCIA: Total calculado (${calculatedTotal}) ≠ Total real (${total})`);
+        console.warn('Estados de los batches:', batches.map(b => ({id: b.id, status: b.status})));
+      }
+
+      $('#totalBatches').text(total);
+      $('#pendingBatches').text(pending);
+      $('#inProgressBatches').text(inProgress);
+      $('#completedBatches').text(completed);
+
+      // Estadísticas por responsable
+      const byAssignee = {};
+      batches.forEach(b => {
+        if (!byAssignee[b.assignee]) {
+          byAssignee[b.assignee] = { 
+            total: 0, 
+            pending: 0,     // NS
+            inProgress: 0,  // In - Incompletas
+            completed: 0    // S
+          };
+        }
+        byAssignee[b.assignee].total++;
+        if (b.status === 'NS') byAssignee[b.assignee].pending++;
+        else if (b.status === 'In') byAssignee[b.assignee].inProgress++;
+        else if (b.status === 'S') byAssignee[b.assignee].completed++;
+      });
+
+      console.log('📊 Estadísticas generales:', {
+        total, 
+        pending: `${pending} (NS - No Segmentado)`, 
+        inProgress: `${inProgress} (In - Incompletas)`, 
+        completed: `${completed} (S - Segmentado)`
+      });
+      console.log('👥 Estadísticas por responsable:', byAssignee);
+      
+      // Actualizar métricas por responsable en la UI si estamos en una vista específica
+      updateAssigneeStats(byAssignee);
+    }
+    
+    // Función para actualizar estadísticas específicas del responsable
+    function updateAssigneeStats(byAssignee) {
+      // Si estamos en una vista filtrada por responsable, mostrar sus estadísticas específicas
+      if (filterAssignee && byAssignee[filterAssignee]) {
+        const assigneeStats = byAssignee[filterAssignee];
+        
+        // Actualizar los números con las estadísticas del responsable específico
+        $('#totalBatches').text(assigneeStats.total);
+        $('#pendingBatches').text(assigneeStats.pending);
+        $('#inProgressBatches').text(assigneeStats.inProgress);
+        $('#completedBatches').text(assigneeStats.completed);
+        
+        // Agregar indicador visual de que son estadísticas específicas
+        $('.card-title').each(function() {
+          const $title = $(this);
+          const originalText = $title.text().replace(` - ${filterAssignee}`, '');
+          $title.text(`${originalText} - ${filterAssignee}`);
+        });
+        
+        console.log(`📊 Estadísticas de ${filterAssignee}:`, assigneeStats);
+      } else {
+        // Si no hay filtro, asegurar que se muestren los títulos originales sin nombre de responsable
+        $('.card-title').each(function() {
+          const $title = $(this);
+          const originalText = $title.text().split(' - ')[0]; // Remover cualquier " - NombreResponsable"
+          $title.text(originalText);
+        });
+        
+        console.log('📊 Mostrando estadísticas generales (sin filtro)');
+      }
+      
+      // Crear un resumen por responsable en la consola
+      console.log('📈 RESUMEN POR RESPONSABLE:');
+      Object.keys(byAssignee).forEach(assignee => {
+        const stats = byAssignee[assignee];
+        const completionRate = ((stats.completed / stats.total) * 100).toFixed(1);
+        console.log(`👤 ${assignee}: ${stats.total} total, ${stats.completed} completados (${completionRate}%), ${stats.inProgress} incompletas, ${stats.pending} pendientes`);
+      });
+    }
+
+    function updateTable() {
+      console.log('📋 Actualizando tabla con', batches.length, 'batches');
+      batchesTable.clear();
+
+      // Filtrar batches del DASHBOARD GENERAL vs INDIVIDUAL:
+      // - Dashboard General: Mostrar TODOS pero ordenar (completados al final)
+      // - Dashboard Individual: Mostrar TODOS del segmentador
+
+      // Detectar filtro activo: desde URL (filterAssignee) o desde dropdown
+      const dropdownAssignee = $('#filter-assignee').val();
+      const urlAssignee = filterAssignee; // Variable de Jinja desde el backend
+      const selectedAssignee = dropdownAssignee || urlAssignee;
+      const isFilteredByAssignee = selectedAssignee !== '' && selectedAssignee !== null;
+
+      let batchesForReview;
+      if (isFilteredByAssignee) {
+        // DASHBOARD INDIVIDUAL: Mostrar TODOS los batches del segmentador
+        batchesForReview = batches.filter(batch =>
+          batch.assignee === selectedAssignee
+        );
+        console.log(`📊 [DASHBOARD INDIVIDUAL de ${selectedAssignee}] Mostrando TODOS los ${batchesForReview.length} batches asignados`);
+      } else {
+        // DASHBOARD GENERAL: Mostrar TODOS los batches (asignados + sin asignar)
+        // Orden: 1) Asignados pendientes, 2) Sin asignar, 3) Completados
+        batchesForReview = batches; // TODOS
+
+        // Ordenar por categoría
+        batchesForReview.sort((a, b) => {
+          const aAssignee = a.assignee && a.assignee.trim() !== '';
+          const bAssignee = b.assignee && b.assignee.trim() !== '';
+          const aCompleted = a.status === 'S' && a.metadata?.review_status === 'aprobado';
+          const bCompleted = b.status === 'S' && b.metadata?.review_status === 'aprobado';
+
+          // Categorías: 1=Asignado pendiente, 2=Sin asignar, 3=Completado
+          const aCategory = aCompleted ? 3 : (aAssignee ? 1 : 2);
+          const bCategory = bCompleted ? 3 : (bAssignee ? 1 : 2);
+
+          return aCategory - bCategory;
+        });
+
+        console.log(`📊 [DASHBOARD GENERAL] Mostrando TODOS los ${batchesForReview.length} batches (asignados→sin asignar→completados)`);
+      }
+      
+      batchesForReview.forEach(function(batch, index) {
+        console.log(`Procesando batch ${index + 1}:`, batch);
+        
+        // Estado de MongoDB (Cargado a Mongo)
+        const mongoStatus = batch.mongo_uploaded ? 
+          `<i class="fas fa-check-circle text-success" title="Sí"></i> Sí` : 
+          `<i class="fas fa-times-circle text-danger" title="No"></i> No`;
+        
+        // Selector de estatus de segmentación
+        const statusSelect = `
+          <select class="form-select form-select-sm segmentation-status-select" data-batch-id="${batch.id}" style="min-width: 120px;">
+            <option value="In" ${batch.status === 'In' ? 'selected' : ''}>In - Incompleta</option>
+            <option value="NS" ${batch.status === 'NS' ? 'selected' : ''}>NS - No Segmentado</option>
+            <option value="S" ${batch.status === 'S' ? 'selected' : ''}>S - Segmentado (QUITAR DE COLA)</option>
+          </select>
+        `;
+        
+        // Selector de revisión con Aprobado/No Aprobado e indicador visual
+        const reviewStatus = batch.metadata?.review_status || '';
+        const approvedBadge = reviewStatus === 'aprobado' ? ' ✅' : reviewStatus === 'no_aprobado' ? ' ❌' : '';
+        const reviewSelect = `
+          <select class="form-select form-select-sm review-select ${reviewStatus === 'aprobado' ? 'border-success' : reviewStatus === 'no_aprobado' ? 'border-danger' : ''}" 
+                  data-batch-id="${batch.id}" style="min-width: 120px;">
+            <option value="">Pendiente</option>
+            <option value="aprobado" ${reviewStatus === 'aprobado' ? 'selected' : ''}>✅ Aprobado</option>
+            <option value="no_aprobado" ${reviewStatus === 'no_aprobado' ? 'selected' : ''}>❌ No Aprobado</option>
+          </select>
+        `;
+        
+        // Campo de comentarios editable
+        const commentsInput = `
+          <textarea class="form-control form-control-sm comments-input" 
+                    data-batch-id="${batch.id}" 
+                    rows="2" 
+                    style="min-width: 200px;">${batch.comments || ''}</textarea>
+        `;
+        
+        // Batch ID estático (no editable)
+        const batchIdStatic = `
+          <span class="batch-id-static fw-bold text-primary" data-batch-id="${batch.id}">
+            ${batch.id}
+          </span>
+        `;
+        
+        // Columna Responsable: editable si assignModeActive está activo
+        let assigneeColumn;
+        if (assignModeActive) {
+          // Modo asignación: dropdown editable
+          let options = '<option value="">Sin asignar</option>';
+          CREW_MEMBERS.forEach(name => {
+            const selected = batch.assignee === name ? 'selected' : '';
+            options += `<option value="${name}" ${selected}>${name}</option>`;
+          });
+          assigneeColumn = `
+            <select class="form-select form-select-sm assignee-select" data-batch-id="${batch.id}">
+              ${options}
+            </select>
+          `;
+        } else {
+          // Modo normal: solo texto
+          assigneeColumn = batch.assignee || '<span class="text-muted">Sin asignar</span>';
+        }
+
+        const row = [
+          batchIdStatic,
+          assigneeColumn,
+          mongoStatus,
+          statusSelect,
+          batch.metadata?.assigned_at || '',  // Usar optional chaining y fallback
+          reviewSelect,
+          commentsInput,
+          `
+            <div class="action-buttons">
+              <button class="btn btn-sm btn-outline-success" onclick="saveBatchChanges('${batch.id}')" title="Guardar cambios">
+                <i class="fas fa-save"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-info" onclick="viewBatchDetails('${batch.id}')" title="Ver detalles">
+                <i class="fas fa-eye"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteBatchConfirm('${batch.id}')" title="Eliminar batch">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          `
+        ];
+        
+        batchesTable.row.add(row);
+        
+        // Agregar clase especial si el batch está aprobado pero aún en cola
+        if (reviewStatus === 'aprobado') {
+          setTimeout(() => {
+            $(`[data-batch-id="${batch.id}"]`).closest('tr').addClass('table-success-light');
+          }, 100);
+        }
+      });
+      
+      batchesTable.draw();
+
+      // NO aplicar filtro de DataTables aquí porque YA filtramos en batchesForReview
+      // El filtro ya se aplicó en las líneas 1083-1098 según sea dashboard general o individual
+
+      // Agregar eventos para cambios inline
+      addInlineEditEvents();
+      
+      console.log('✅ Tabla actualizada');
+    }
+
+    function createBatch() {
+      console.log('🆕 Iniciando creación de batch...');
+      
+      const form = document.getElementById('newBatchForm');
+      if (!form) {
+        console.error('❌ No se encontró el formulario newBatchForm');
+        showNotification('Error: Formulario no encontrado', 'error');
+        return;
+      }
+      
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData.entries());
+      console.log('📋 Datos del formulario:', data);
+      
+      // Validar campos requeridos
+      if (!data.assignee) {
+        showNotification('Por favor selecciona un responsable', 'warning');
+        return;
+      }
+      
+      if (!data.batch_id) {
+        showNotification('Por favor ingresa un Batch ID', 'warning');
+        return;
+      }
+      
+      if (!data.folder) {
+        showNotification('Por favor ingresa la carpeta de imágenes', 'warning');
+        return;
+      }
+      
+      // Limpiar y formatear el Batch ID
+      let batchId = data.batch_id.trim();
+      // Si no empieza con "batch" o "Batch", agregarlo
+      if (!batchId.toLowerCase().startsWith('batch')) {
+        batchId = 'batch_' + batchId;
+      }
+      // Reemplazar espacios con guiones bajos
+      batchId = batchId.replace(/\s+/g, '_');
+      
+      console.log('🆔 ID del batch:', batchId);
+      
+      // Verificar que el ID no exista ya
+      if (batches.find(b => b.id === batchId)) {
+        showNotification(`El Batch ID "${batchId}" ya existe. Por favor usa otro ID.`, 'warning');
+        return;
+      }
+      
+      // Estructurar los datos según el nuevo formato
+      const batchData = {
+        id: batchId,
+        assignee: data.assignee,
+        folder: data.folder || `/data/${batchId}`,
+        tasks: ["segmentar", "subir_mascaras", "revisar"],
+        metadata: {
+          assigned_at: new Date().toISOString().split('T')[0], // Fecha actual
+          due_date: data.due_date || '',
+          priority: data.priority || 'media',
+          reviewed_at: null
+        },
+        status: 'NS', // No segmentado por defecto
+        mongo_uploaded: false, // No subido por defecto
+        comments: data.comments || 'Batch creado desde dashboard'
+      };
+      
+      console.log('📤 Enviando datos:', batchData);
+      showNotification('Creando batch...', 'info');
+      
+      $.ajax({
+        url: '/api/batches',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(batchData),
+        success: function(response) {
+          console.log('✅ Respuesta del servidor:', response);
+          if (response.success) {
+            $('#newBatchModal').modal('hide');
+            resetNewBatchForm();
+            showNotification(`¡Batch ${response.batch.id} creado exitosamente!`, 'success');
+            loadBatches(); // Recargar la tabla
+          } else {
+            console.error('❌ Error en respuesta:', response);
+            showNotification('Error creando batch: ' + response.message, 'error');
+          }
+        },
+        error: function(xhr, status, error) {
+          console.error('❌ Error AJAX:', {xhr, status, error});
+          console.error('❌ Respuesta del servidor:', xhr.responseText);
+          const errorMsg = xhr.responseJSON?.error || xhr.responseText || 'Error desconocido';
+          showNotification('Error creando batch: ' + errorMsg, 'error');
+        }
+      });
+    }
+
+    // Función de debug para mostrar información del sistema
+    function debugInfo() {
+      const debugData = {
+        timestamp: new Date().toISOString(),
+        total_batches: batches.length,
+        form_data: {
+          batch_id: document.getElementById('batch_id').value,
+          assignee: document.getElementById('assignee').value,
+          folder: document.getElementById('folder').value,
+          due_date: document.getElementById('due_date').value,
+          priority: document.getElementById('priority').value,
+          comments: document.getElementById('comments').value
+        },
+        browser_info: {
+          userAgent: navigator.userAgent,
+          language: navigator.language,
+          cookieEnabled: navigator.cookieEnabled
+        },
+        page_state: {
+          current_filter: $('#responsibleFilter').val(),
+          total_displayed_rows: $('#batchesTable tbody tr').length
+        },
+        recent_console_logs: 'Revisa la consola del navegador (F12) para más detalles'
+      };
+
+      console.log('🐛 DEBUG INFO COMPLETA:', debugData);
+      
+      // Mostrar en un modal o alert
+      const debugText = `DEBUG INFO (${new Date().toLocaleString()}):
+      
+📊 Total Batches: ${debugData.total_batches}
+🎯 Filtro Actual: ${debugData.page_state.current_filter}
+📝 Filas Mostradas: ${debugData.page_state.total_displayed_rows}
+
+📋 DATOS DEL FORMULARIO:
+- Batch ID: "${debugData.form_data.batch_id}"
+- Responsable: "${debugData.form_data.assignee}"
+- Carpeta: "${debugData.form_data.folder}"
+- Fecha Límite: "${debugData.form_data.due_date}"
+- Prioridad: "${debugData.form_data.priority}"
+- Comentarios: "${debugData.form_data.comments}"
+
+🌐 NAVEGADOR:
+- ${debugData.browser_info.userAgent}
+- Idioma: ${debugData.browser_info.language}
+- Cookies: ${debugData.browser_info.cookieEnabled ? 'Habilitadas' : 'Deshabilitadas'}
+
+💡 NOTA: Información completa disponible en la consola del navegador (presiona F12)`;
+
+      alert(debugText);
+      showNotification('Información de debug generada - revisa la consola (F12)', 'info');
+    }
+
+    function editBatch(batchId) {
+      const batch = batches.find(b => b.id === batchId);
+      if (!batch) return;
+      
+      const form = document.getElementById('editBatchForm');
+      form.batch_id.value = batch.id;
+      form.assignee.value = batch.assignee;
+      form.folder.value = batch.folder || '';
+      form.status.value = batch.status;
+      form.due_date.value = batch.metadata.due_date;
+      form.priority.value = batch.metadata.priority;
+      form.comments.value = batch.comments || '';
+      
+      $('#editBatchModal').modal('show');
+    }
+
+    function updateBatch() {
+      const formData = new FormData(document.getElementById('editBatchForm'));
+      const data = Object.fromEntries(formData.entries());
+      const batchId = data.batch_id;
+      delete data.batch_id;
+      
+      $.ajax({
+        url: `/api/batches/${batchId}`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(response) {
+          $('#editBatchModal').modal('hide');
+          loadBatches();
+          alert('Batch actualizado exitosamente');
+        },
+        error: function(xhr) {
+          alert('Error actualizando batch: ' + xhr.responseJSON.error);
+        }
+      });
+    }
+    
+    // Función para guardar cambios de un batch
+    function saveBatchChanges(batchId) {
+      const batch = batches.find(b => b.id === batchId);
+      if (!batch) return;
+      
+      // Obtener valores de los campos editables
+      const segmentationStatus = $(`.segmentation-status-select[data-batch-id="${batchId}"]`).val();
+      const reviewStatus = $(`.review-select[data-batch-id="${batchId}"]`).val();
+      const comments = $(`.comments-input[data-batch-id="${batchId}"]`).val();
+      
+      // Actualizar el objeto batch
+      batch.status = segmentationStatus;
+      batch.metadata.review_status = reviewStatus;
+      batch.comments = comments;
+      
+      // Si el batch fue aprobado, solo agregar fecha de aprobación (NO cambiar status automáticamente)
+      if (reviewStatus === 'aprobado') {
+        batch.metadata.approved_at = new Date().toISOString().split('T')[0];
+        batch.metadata.reviewed_at = new Date().toISOString().split('T')[0];
+      } else if (reviewStatus === 'no_aprobado') {
+        batch.metadata.reviewed_at = new Date().toISOString().split('T')[0];
+        // Limpiar fecha de aprobación si se rechaza
+        batch.metadata.approved_at = null;
+      }
+      
+      // Enviar actualización al servidor
+      $.ajax({
+        url: `/api/batches/${batchId}`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({
+          status: batch.status,
+          metadata: batch.metadata,
+          comments: comments
+        }),
+        success: function(response) {
+          if (response.success) {
+            if (reviewStatus === 'aprobado') {
+              showNotification(`¡Batch ${batchId} APROBADO! Permanece en cola hasta cambiar estado manualmente.`, 'success');
+            } else if (reviewStatus === 'no_aprobado') {
+              showNotification(`Batch ${batchId} marcado como NO APROBADO.`, 'warning');
+            } else {
+              showNotification('Batch actualizado exitosamente', 'success');
+            }
+            
+            // Recargar la tabla para reflejar los cambios
+            loadBatches();
+          } else {
+            showNotification('Error actualizando batch: ' + response.message, 'error');
+          }
+        },
+        error: function(xhr) {
+          showNotification('Error actualizando batch: ' + (xhr.responseJSON?.error || 'Error desconocido'), 'error');
+        }
+      });
+    }
+    
+    // Función para ver detalles de un batch
+    function viewBatchDetails(batchId) {
+      const batch = batches.find(b => b.id === batchId);
+      if (!batch) return;
+      
+      const mongoStatusText = batch.mongo_uploaded ? 'Sí' : 'No';
+      const statusText = {
+        'S': 'Segmentado Completo',
+        'In': 'Incompleta',
+        'NS': 'No Segmentado'
+      }[batch.status] || batch.status;
+      
+      const modalContent = `
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Información General</h6>
+            <p><strong>ID:</strong> ${batch.id}</p>
+            <p><strong>Responsable:</strong> ${batch.assignee || 'Sin asignar'}</p>
+            <p><strong>Carpeta:</strong> ${batch.folder}</p>
+          </div>
+          <div class="col-md-6">
+            <h6>Estado y Fechas</h6>
+            <p><strong>Cargado a MongoDB:</strong> ${mongoStatusText}</p>
+            <p><strong>Estatus:</strong> ${statusText}</p>
+            <p><strong>Fecha Asignación:</strong> ${batch.metadata.assigned_at || 'No asignada'}</p>
+            <p><strong>Fecha Revisión:</strong> ${batch.metadata.reviewed_at || 'Pendiente'}</p>
+          </div>
+        </div>
+        <div class="row mt-3">
+          <div class="col-12">
+            <h6>Comentarios</h6>
+            <p class="text-muted">${batch.comments || 'Sin comentarios'}</p>
+          </div>
+        </div>
+      `;
+      
+      // Mostrar modal con información
+      const modal = `
+        <div class="modal fade" id="batchDetailsModal" tabindex="-1">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Detalles del Batch ${batchId}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                ${modalContent}
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Remover modal anterior si existe
+      $('#batchDetailsModal').remove();
+      
+      // Agregar y mostrar modal
+      $('body').append(modal);
+      $('#batchDetailsModal').modal('show');
+    }
+    
+    // Función para ver archivos de un batch
+    function viewBatchFiles(batchId) {
+      $.ajax({
+        url: `/api/batch-files/${batchId}`,
+        method: 'GET',
+        success: function(response) {
+          if (response.success) {
+            const fileInfo = response.file_info;
+            let modalContent = '';
+            
+            if (fileInfo.count > 0) {
+              modalContent = `
+                <p><strong>Archivos encontrados:</strong> ${fileInfo.count}</p>
+                <p><strong>Última subida:</strong> ${new Date(fileInfo.latest_upload).toLocaleString('es-ES')}</p>
+                <p><strong>Subido por:</strong> ${fileInfo.uploaded_by}</p>
+                <p><strong>Tamaño total:</strong> ${(fileInfo.total_size / (1024*1024)).toFixed(2)} MB</p>
+                <hr>
+                <p><a href="/masks" target="_blank" class="btn btn-primary">Ver todos los archivos en MongoDB</a></p>
+              `;
+            } else {
+              modalContent = `
+                <div class="alert alert-warning">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  No se encontraron archivos para el batch <strong>${batchId}</strong> en MongoDB.
+                </div>
+                <p>Los archivos deben seguir el patrón: <code>masks_batch_${batchId.replace('batch-', '')}.tar.xz</code></p>
+              `;
+            }
+            
+            // Mostrar modal con información
+            const modal = `
+              <div class="modal fade" id="fileInfoModal" tabindex="-1">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">Archivos del Batch ${batchId}</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                      ${modalContent}
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+            
+            // Remover modal anterior si existe
+            $('#fileInfoModal').remove();
+            
+            // Agregar y mostrar modal
+            $('body').append(modal);
+            $('#fileInfoModal').modal('show');
+            
+          } else {
+            showNotification('Error al obtener información de archivos: ' + response.message, 'error');
+          }
+        },
+        error: function() {
+          showNotification('Error al conectar con el servidor', 'error');
+        }
+      });
+    }
+
+    function deleteBatchConfirm(batchId) {
+      const batch = batches.find(b => b.id === batchId);
+      if (!batch) {
+        showNotification('Batch no encontrado', 'error');
+        return;
+      }
+      
+      // Crear modal de confirmación personalizado
+      const confirmationModal = `
+        <div class="modal fade" id="deleteBatchModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                  <i class="fas fa-exclamation-triangle"></i> Confirmar Eliminación
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="alert alert-warning">
+                  <i class="fas fa-warning"></i>
+                  <strong>¡Atención!</strong> Esta acción no se puede deshacer.
+                </div>
+                <p><strong>¿Estás seguro de que quieres eliminar el siguiente batch?</strong></p>
+                <div class="card bg-light">
+                  <div class="card-body">
+                    <p class="mb-1"><strong>Batch ID:</strong> ${batch.id}</p>
+                    <p class="mb-1"><strong>Responsable:</strong> ${batch.assignee || 'Sin asignar'}</p>
+                    <p class="mb-1"><strong>Estado:</strong> ${batch.status}</p>
+                    <p class="mb-0"><strong>Comentarios:</strong> ${batch.comments || 'Sin comentarios'}</p>
+                  </div>
+                </div>
+                <p class="mt-3 text-muted">
+                  <small>
+                    <i class="fas fa-info-circle"></i>
+                    El batch será eliminado permanentemente del sistema y de la base de datos.
+                  </small>
+                </p>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                  <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" onclick="deleteBatch('${batchId}')">
+                  <i class="fas fa-trash"></i> Sí, Eliminar Batch
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Remover modal anterior si existe
+      $('#deleteBatchModal').remove();
+      
+      // Agregar y mostrar modal
+      $('body').append(confirmationModal);
+      $('#deleteBatchModal').modal('show');
+      
+      // Auto-remover modal cuando se cierre
+      $('#deleteBatchModal').on('hidden.bs.modal', function() {
+        $(this).remove();
+      });
+    }
+
+    function deleteBatch(batchId) {
+      console.log(`🗑️ Eliminando batch: ${batchId}`);
+      showNotification('Eliminando batch...', 'info');
+      
+      $.ajax({
+        url: `/api/batches/${batchId}`,
+        method: 'DELETE',
+        success: function(response) {
+          $('#deleteBatchModal').modal('hide');
+          
+          if (response.success) {
+            showNotification(`Batch ${batchId} eliminado exitosamente`, 'success');
+            loadBatches(); // Recargar la tabla
+          } else {
+            showNotification('Error eliminando batch: ' + response.message, 'error');
+          }
+        },
+        error: function(xhr) {
+          $('#deleteBatchModal').modal('hide');
+          const errorMsg = xhr.responseJSON?.error || 'Error desconocido';
+          showNotification('Error eliminando batch: ' + errorMsg, 'error');
+          console.error(`❌ Error eliminando batch ${batchId}:`, xhr);
+        }
+      });
+    }
+    
+    // Función para sincronizar archivos entre batches y MongoDB
+    function syncBatchFiles() {
+      showNotification('Sincronizando archivos con MongoDB...', 'info');
+      
+      $.ajax({
+        url: '/api/sync-batch-files',
+        method: 'POST',
+        success: function(response) {
+          if (response.success) {
+            showNotification(`Sincronización completa. ${response.batches_updated} batches actualizados.`, 'success');
+            loadBatches(); // Recargar la tabla
+            
+            // Mostrar detalles si hay cambios
+            if (response.batches_updated > 0) {
+              console.log('📊 Resultados de sincronización:', response.results);
+              
+              // Mostrar batches que cambiaron
+              const updatedBatches = response.results.filter(r => r.updated);
+              if (updatedBatches.length > 0) {
+                const batchNames = updatedBatches.map(b => b.batch_id).join(', ');
+                showNotification(`Batches actualizados: ${batchNames}`, 'info');
+              }
+            }
+          } else {
+            showNotification('Error en la sincronización: ' + response.error, 'error');
+          }
+        },
+        error: function(xhr) {
+          const errorMsg = xhr.responseJSON?.error || 'Error desconocido';
+          showNotification('Error al conectar con el servidor para sincronización: ' + errorMsg, 'error');
+        }
+      });
+    }
+
+    // Nueva función para verificar archivos en MongoDB
+    function checkMongoFiles() {
+      showNotification('Verificando archivos en MongoDB...', 'info');
+      
+      $.ajax({
+        url: '/api/check-mongo-files',
+        method: 'GET',
+        timeout: 30000, // 30 segundos de timeout
+        success: function(response) {
+          if (response.success) {
+            // Crear modal con información de archivos
+            let modalContent = `
+              <div class="alert alert-info">
+                <i class="fas fa-database"></i>
+                <strong>Total de archivos en MongoDB:</strong> ${response.total_files}
+              </div>
+              
+              <h6>📁 Archivos por Batch:</h6>
+              <div class="row">
+            `;
+            
+            if (Object.keys(response.batch_patterns).length > 0) {
+              Object.keys(response.batch_patterns).sort().forEach(batchKey => {
+                const files = response.batch_patterns[batchKey];
+                modalContent += `
+                  <div class="col-md-6 mb-2">
+                    <div class="card card-body bg-light">
+                      <h6 class="text-primary">${batchKey}</h6>
+                      <small>${files.length} archivo(s):</small>
+                      <ul class="list-unstyled mb-0">
+                `;
+                files.slice(0, 3).forEach(filename => {
+                  modalContent += `<li><small><i class="fas fa-file"></i> ${filename}</small></li>`;
+                });
+                if (files.length > 3) {
+                  modalContent += `<li><small class="text-muted">... y ${files.length - 3} más</small></li>`;
+                }
+                modalContent += `
+                      </ul>
+                    </div>
+                  </div>
+                `;
+              });
+            } else {
+              modalContent += `
+                <div class="col-12">
+                  <div class="alert alert-warning">
+                    No se encontraron archivos con patrones de batch reconocibles.
+                  </div>
+                </div>
+              `;
+            }
+            
+            modalContent += `
+              </div>
+              
+              <h6 class="mt-3">📄 Archivos Recientes:</h6>
+              <div class="table-responsive" style="max-height: 300px;">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Archivo</th>
+                      <th>Fecha</th>
+                      <th>Tamaño (MB)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            `;
+            
+            response.recent_files.slice(0, 10).forEach(file => {
+              modalContent += `
+                <tr>
+                  <td><small>${file.filename}</small></td>
+                  <td><small>${file.uploadDate ? new Date(file.uploadDate).toLocaleString('es-ES') : 'N/A'}</small></td>
+                  <td><small>${file.size_mb}</small></td>
+                </tr>
+              `;
+            });
+            
+            modalContent += `
+                  </tbody>
+                </table>
+              </div>
+            `;
+            
+            // Mostrar modal
+            const modal = `
+              <div class="modal fade" id="mongoFilesModal" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">
+                        <i class="fas fa-database"></i> Archivos en MongoDB
+                      </h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                      ${modalContent}
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-primary" onclick="syncBatchFiles(); $('#mongoFilesModal').modal('hide');">
+                        <i class="fas fa-sync-alt"></i> Sincronizar Ahora
+                      </button>
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+            
+            // Remover modal anterior y mostrar nuevo
+            $('#mongoFilesModal').remove();
+            $('body').append(modal);
+            $('#mongoFilesModal').modal('show');
+            
+            showNotification(`Verificación completa: ${response.total_files} archivos encontrados`, 'success');
+            
+          } else {
+            console.error('Error response:', response);
+            const errorMsg = response.error || 'Error desconocido';
+            const errorType = response.error_type || 'Unknown';
+            showNotification(`Error verificando MongoDB (${errorType}): ${errorMsg}`, 'error');
+          }
+        },
+        error: function(xhr, status, error) {
+          console.error('AJAX Error:', {xhr, status, error});
+          console.error('Response Text:', xhr.responseText);
+          
+          let errorMsg = 'Error de conexión';
+          if (xhr.responseJSON && xhr.responseJSON.error) {
+            errorMsg = xhr.responseJSON.error;
+          } else if (xhr.responseText) {
+            try {
+              const parsed = JSON.parse(xhr.responseText);
+              errorMsg = parsed.error || errorMsg;
+            } catch (e) {
+              errorMsg = xhr.responseText;
+            }
+          } else if (status === 'timeout') {
+            errorMsg = 'Timeout - La operación tardó demasiado';
+          } else if (error) {
+            errorMsg = error;
+          }
+          
+          showNotification(`Error verificando MongoDB: ${errorMsg}`, 'error');
+        }
+      });
+    }
+
+    function resetBatches() {
+      if (!confirm('¿Estás seguro de que quieres recargar todos los datos desde el archivo JSON? Esto sobrescribirá cualquier cambio no guardado.')) return;
+      
+      $.ajax({
+        url: '/api/reset-batches',
+        method: 'POST',
+        success: function(response) {
+          loadBatches();
+          alert(response.message);
+        },
+        error: function(xhr) {
+          alert('Error recargando datos: ' + xhr.responseJSON.error);
+        }
+      });
+    }
+
+    // Nueva función para forzar la inicialización
+    function forceInitBatches() {
+      const confirmMessage = `⚠️ ADVERTENCIA ⚠️
+
+Esta acción va a:
+• Eliminar TODOS los batches existentes en la base de datos
+• Cargar los batches desde el archivo batches.json
+• Perder cualquier batch creado que no esté en el archivo JSON
+
+¿Estás completamente seguro de que quieres continuar?
+
+Escribe "CONFIRMAR" para proceder:`;
+
+      const userInput = prompt(confirmMessage);
+      
+      if (userInput !== "CONFIRMAR") {
+        showNotification('Operación cancelada', 'info');
+        return;
+      }
+      
+      showNotification('Forzando reinicialización desde archivo JSON...', 'warning');
+      
+      $.ajax({
+        url: '/api/init-batches',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ force: true }),
+        success: function(response) {
+          if (response.success) {
+            showNotification(`Reinicialización completa: ${response.loaded_count} batches cargados desde JSON`, 'success');
+            loadBatches(); // Recargar la tabla
+          } else {
+            showNotification('Error en reinicialización: ' + response.error, 'error');
+          }
+        },
+        error: function(xhr) {
+          const errorMsg = xhr.responseJSON?.error || 'Error desconocido';
+          showNotification('Error forzando reinicialización: ' + errorMsg, 'error');
+        }
+      });
+    }
+
+    // Función para mostrar batches aprobados
+    function showApprovedBatches() {
+      // Filtrar batches aprobados
+      const approvedBatches = batches.filter(batch => batch.status === 'S');
+      
+      let approvedHtml = `
+        <div class="mb-3">
+          <h6><i class="fas fa-check-circle text-success"></i> Batches Aprobados (${approvedBatches.length})</h6>
+        </div>
+      `;
+      
+      if (approvedBatches.length > 0) {
+        approvedHtml += `
+          <div class="table-responsive">
+            <table class="table table-sm table-striped">
+              <thead>
+                <tr>
+                  <th>Batch ID</th>
+                  <th>Responsable</th>
+                  <th>Fecha Aprobación</th>
+                  <th>Comentarios</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        
+        approvedBatches.forEach(batch => {
+          const approvedDate = batch.metadata.approved_at || batch.metadata.reviewed_at || 'No registrada';
+          
+          approvedHtml += `
+            <tr>
+              <td><code>${batch.id}</code></td>
+              <td><span class="badge bg-info">${batch.assignee || 'Sin asignar'}</span></td>
+              <td>${approvedDate}</td>
+              <td><small class="text-muted">${batch.comments || 'Sin comentarios'}</small></td>
+            </tr>
+          `;
+        });
+        
+        approvedHtml += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      } else {
+        approvedHtml += `
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            No hay batches aprobados aún.
+          </div>
+        `;
+      }
+      
+      // Mostrar modal
+      const modal = `
+        <div class="modal fade" id="approvedBatchesModal" tabindex="-1">
+          <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">
+                  <i class="fas fa-check-circle text-success"></i> Historial de Batches Aprobados
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                ${approvedHtml}
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-success" onclick="exportApprovedBatches()">
+                  <i class="fas fa-download"></i> Exportar Lista
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Remover modal anterior si existe
+      $('#approvedBatchesModal').remove();
+      
+      // Agregar y mostrar modal
+      $('body').append(modal);
+      $('#approvedBatchesModal').modal('show');
+      
+      // Auto-remover modal cuando se cierre
+      $('#approvedBatchesModal').on('hidden.bs.modal', function() {
+        $(this).remove();
+      });
+    }
+
+    // Función para exportar batches aprobados
+    function exportApprovedBatches() {
+      const approvedBatches = batches.filter(batch => batch.status === 'S');
+      
+      if (approvedBatches.length === 0) {
+        showNotification('No hay batches aprobados para exportar', 'warning');
+        return;
+      }
+      
+      // Crear CSV
+      let csvContent = "Batch ID,Responsable,Fecha Aprobación,Comentarios\n";
+      
+      approvedBatches.forEach(batch => {
+        const approvedDate = batch.metadata.approved_at || batch.metadata.reviewed_at || '';
+        const comments = (batch.comments || '').replace(/"/g, '""'); // Escapar comillas
+        
+        csvContent += `"${batch.id}","${batch.assignee}","${approvedDate}","${comments}"\n`;
+      });
+      
+      // Descargar archivo
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `batches_aprobados_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showNotification(`Exportados ${approvedBatches.length} batches aprobados`, 'success');
+    }
+
+    // Función para comparar batches con MongoDB y mostrar los faltantes
+    async function compareBatchesWithMongo() {
+      try {
+        console.log('🔍 Iniciando comparación de batches...');
+        
+        // Lista de todas las carpetas de batches disponibles localmente
+        const localBatches = [
+          'batch_20250624T191328', 'batch_20250624T191829', 'batch_20250624T191831', 'batch_20250624T191835',
+          'batch_20250624T191836', 'batch_20250624T191837', 'batch_20250624T191838', 'batch_20250624T191839',
+          'batch_20250624T191841', 'batch_20250624T191843', 'batch_20250624T191844', 'batch_20250624T191845',
+          'batch_20250624T191847', 'batch_20250624T191848', 'batch_20250624T191849', 'batch_20250624T191850',
+          'batch_20250624T191851', 'batch_20250624T191852', 'batch_20250624T191853', 'batch_20250624T191854',
+          'batch_20250624T191855', 'batch_20250624T191856', 'batch_20250624T191857', 'batch_20250624T191858',
+          'batch_20250624T191859', 'batch_20250624T191900', 'batch_20250624T191901', 'batch_20250624T191902',
+          'batch_20250624T191903', 'batch_20250624T191904', 'batch_20250624T191905', 'batch_20250624T191906',
+          'batch_20250624T191907', 'batch_20250624T191908', 'batch_20250624T191909', 'batch_20250624T191910',
+          'batch_20250624T191911', 'batch_20250624T191912', 'batch_20250624T191913', 'batch_20250624T191914',
+          'batch_20250624T191915', 'batch_20250624T191916', 'batch_20250624T191917', 'batch_20250624T191918',
+          'batch_20250624T191919', 'batch_20250624T191920', 'batch_20250624T191921', 'batch_20250624T191922',
+          'batch_20250624T191923', 'batch_20250624T191924', 'batch_20250624T191925', 'batch_20250624T191926',
+          'batch_20250624T191927', 'batch_20250624T191928', 'batch_20250624T191929', 'batch_4248', 'batch_4249',
+          'batch_4250', 'batch_4251', 'batch_4252', 'batch_4253', 'batch_4254', 'batch_4255', 'batch_4256',
+          'batch_4257', 'batch_4258', 'batch_4259', 'batch_4260', 'batch_4261', 'batch_2702', 'batch_2703',
+          'batch_2704', 'batch_2705', 'batch_2706', 'batch_2707', 'batch_2708', 'batch_2709', 'batch_2710',
+          'batch_2711', 'batch_2712', 'batch_2713', 'batch_2714', 'batch_2715', 'batch_2716', 'batch_2717',
+          'batch_2718', 'batch_2719', 'batch_2720', 'batch_2721', 'batch_2722', 'batch_2723', 'batch_2724',
+          'batch_2725', 'batch_2726', 'batch_2727', 'batch_2728', 'batch_2729', 'batch_2730', 'batch_2731',
+          'batch_2732', 'batch_2733', 'batch_2734', 'batch_2735', 'batch_2736', 'batch_2737', 'batch_2738',
+          'batch_2739', 'batch_2740', 'batch_2741', 'batch_2742', 'batch_2743', 'batch_2744', 'batch_2745',
+          'batch_2746', 'batch_2747', 'batch_2748', 'batch_2749', 'batch_2750', 'batch_1', 'batch_2', 'batch_3',
+          'batch_4', 'batch_5', 'batch_6', 'batch_7', 'batch_8', 'batch_9', 'batch_10', 'batch_11', 'batch_12',
+          'batch_13', 'batch_14', 'batch_15', 'batch_16', 'batch_17', 'batch_18', 'batch_19', 'batch_20',
+          'batch_21', 'batch_22', 'batch_23', 'batch_24', 'batch_25', 'batch_26', 'batch_27', 'batch_28',
+          'batch_29', 'batch_30', 'batch_31', 'batch_32', 'batch_33', 'batch_34', 'batch_35', 'batch_36',
+          'batch_37', 'batch_38', 'batch_39', 'batch_40', 'batch_41', 'batch_42', 'batch_43', 'batch_44',
+          'batch_45', 'batch_46', 'batch_47', 'batch_48', 'batch_49', 'batch_50', 'batch_51', 'batch_52',
+          'batch_53', 'batch_54', 'batch_55', 'batch_56', 'batch_57', 'batch_58', 'batch_59', 'batch_60',
+          'batch_61', 'batch_62', 'batch_63', 'batch_64', 'batch_65', 'batch_66', 'batch_67', 'batch_68',
+          'batch_69', 'batch_70', 'batch_71', 'batch_72', 'batch_73', 'batch_74', 'batch_75', 'batch_76',
+          'batch_77', 'batch_78', 'batch_79', 'batch_80', 'batch_81', 'batch_82', 'batch_83', 'batch_84',
+          'batch_85', 'batch_86', 'batch_87', 'batch_88', 'batch_89', 'batch_90', 'batch_91', 'batch_92',
+          'batch_93', 'batch_94', 'batch_95', 'batch_96', 'batch_97', 'batch_98', 'batch_99', 'batch_100',
+          'batch_101', 'batch_102', 'batch_103', 'batch_104', 'batch_105', 'batch_106', 'batch_107', 'batch_108',
+          'batch_109', 'batch_110', 'batch_111', 'batch_112', 'batch_113', 'batch_114', 'batch_115', 'batch_116',
+          'batch_117', 'batch_118', 'batch_119', 'batch_120', 'batch_121', 'batch_122', 'batch_123', 'batch_124',
+          'batch_125', 'batch_126', 'batch_127', 'batch_128', 'batch_129', 'batch_130', 'batch_131', 'batch_132',
+          'batch_133', 'batch_134', 'batch_135', 'batch_136', 'batch_137', 'batch_138', 'batch_139', 'batch_140',
+          'batch_141', 'batch_142', 'batch_143', 'batch_144', 'batch_145', 'batch_146', 'batch_147', 'batch_148',
+          'batch_149', 'batch_150', 'batch_151', 'batch_152', 'batch_153', 'batch_154', 'batch_155', 'batch_156',
+          'batch_157', 'batch_158', 'batch_159', 'batch_160', 'batch_161', 'batch_162', 'batch_163', 'batch_164',
+          'batch_165', 'batch_166', 'batch_167', 'batch_168', 'batch_169', 'batch_170', 'batch_171', 'batch_172',
+          'batch_173', 'batch_174', 'batch_175', 'batch_176', 'batch_177', 'batch_178', 'batch_179', 'batch_180',
+          'batch_181', 'batch_182', 'batch_183', 'batch_184', 'batch_185', 'batch_186', 'batch_187', 'batch_188',
+          'batch_189', 'batch_190', 'batch_191', 'batch_192', 'batch_193', 'batch_194', 'batch_195', 'batch_196',
+          'batch_197', 'batch_198', 'batch_199', 'batch_200', 'batch_361', 'batch_362', 'batch_363', 'batch_364',
+          'batch_365', 'batch_366', 'batch_367', 'batch_368', 'batch_369', 'batch_370', 'batch_371', 'batch_372',
+          'batch_373', 'batch_374', 'batch_375', 'batch_376', 'batch_377', 'batch_378', 'batch_379', 'batch_380',
+          'batch_381', 'batch_382', 'batch_383', 'batch_384', 'batch_385', 'batch_386', 'batch_387', 'batch_388',
+          'batch_389', 'batch_390', 'batch_391', 'batch_392', 'batch_393', 'batch_394', 'batch_395', 'batch_396',
+          'batch_397', 'batch_398', 'batch_399', 'batch_400', 'batch_401', 'batch_402', 'batch_403', 'batch_404',
+          'batch_405', 'batch_406', 'batch_407', 'batch_408', 'batch_409', 'batch_410', 'batch_411', 'batch_412',
+          'batch_413', 'batch_414', 'batch_415', 'batch_416', 'batch_417', 'batch_418', 'batch_419', 'batch_420',
+          'batch_421', 'batch_422', 'batch_423', 'batch_424', 'batch_425', 'batch_426', 'batch_427', 'batch_428',
+          'batch_429', 'batch_430', 'batch_431', 'batch_432', 'batch_433', 'batch_434', 'batch_435', 'batch_436',
+          'batch_437', 'batch_438', 'batch_439', 'batch_440', 'batch_441', 'batch_442', 'batch_443', 'batch_444',
+          'batch_445', 'batch_446', 'batch_447', 'batch_448', 'batch_449', 'batch_450', 'batch_451', 'batch_452',
+          'batch_453', 'batch_454', 'batch_455', 'batch_456', 'batch_457', 'batch_458', 'batch_459', 'batch_460',
+          'batch_461', 'batch_462', 'batch_463', 'batch_464', 'batch_465', 'batch_466', 'batch_467', 'batch_468',
+          'batch_469', 'batch_470', 'batch_471', 'batch_472', 'batch_473', 'batch_474', 'batch_475', 'batch_476',
+          'batch_477', 'batch_478', 'batch_479', 'batch_480', 'batch_481', 'batch_482', 'batch_483', 'batch_484',
+          'batch_485', 'batch_486', 'batch_487', 'batch_488', 'batch_489', 'batch_490', 'batch_491', 'batch_492',
+          'batch_493', 'batch_494', 'batch_495', 'batch_496', 'batch_497', 'batch_498', 'batch_499', 'batch_500',
+          'batch_501', 'batch_502', 'batch_503', 'batch_504', 'batch_505', 'batch_506', 'batch_507', 'batch_508',
+          'batch_509', 'batch_510', 'batch_511', 'batch_512', 'batch_513', 'batch_514', 'batch_515', 'batch_516',
+          'batch_517', 'batch_518', 'batch_519', 'batch_520', 'batch_521', 'batch_522', 'batch_523', 'batch_524',
+          'batch_525', 'batch_526', 'batch_527', 'batch_528', 'batch_529', 'batch_530', 'batch_531', 'batch_532',
+          'batch_533', 'batch_534', 'batch_535', 'batch_536', 'batch_537', 'batch_538', 'batch_539', 'batch_540',
+          'batch_541', 'batch_542', 'batch_543', 'batch_544', 'batch_545', 'batch_546', 'batch_547', 'batch_548',
+          'batch_549', 'batch_550', 'batch_551', 'batch_552', 'batch_553', 'batch_554', 'batch_555', 'batch_556',
+          'batch_557', 'batch_558', 'batch_559', 'batch_560', 'batch_561', 'batch_562', 'batch_563', 'batch_564',
+          'batch_565', 'batch_566', 'batch_567', 'batch_568', 'batch_569', 'batch_570', 'batch_571', 'batch_572',
+          'batch_573', 'batch_574', 'batch_575', 'batch_576', 'batch_577', 'batch_578', 'batch_579', 'batch_580',
+          'batch_581', 'batch_582', 'batch_583', 'batch_584', 'batch_585', 'batch_586', 'batch_587', 'batch_588',
+          'batch_589', 'batch_590', 'batch_591', 'batch_592', 'batch_593', 'batch_594', 'batch_595', 'batch_596',
+          'batch_597', 'batch_598', 'batch_599', 'batch_600', 'batch_mart'
+        ];
+
+        console.log(`📊 Total de batches locales: ${localBatches.length}`);
+
+        // Obtener batches existentes en MongoDB
+        showNotification('Consultando MongoDB...', 'info');
+        const response = await fetch('/api/batches');
+        if (!response.ok) {
+          throw new Error(`Error HTTP: ${response.status}`);
+        }
+        
+        const mongoBatches = await response.json();
+        const mongoBatchNames = mongoBatches.map(batch => batch.id);
+        
+        console.log(`📊 Total de batches en MongoDB: ${mongoBatchNames.length}`);
+        console.log('🔍 Primeros 10 batches en MongoDB:', mongoBatchNames.slice(0, 10));
+        
+        // Encontrar batches faltantes
+        const missingBatches = localBatches.filter(batch => !mongoBatchNames.includes(batch));
+        
+        // Encontrar batches que están en MongoDB pero no en local (para debugging)
+        const extraBatches = mongoBatchNames.filter(batch => !localBatches.includes(batch));
+        
+        console.log(`❌ Batches faltantes: ${missingBatches.length}`);
+        console.log(`➕ Batches extra en MongoDB: ${extraBatches.length}`);
+        
+        if (missingBatches.length === 0) {
+          showNotification('¡Todos los batches locales ya están en MongoDB!', 'success');
+          // Mostrar modal informativo aunque no haya faltantes
+          showComparisonResultsModal(localBatches, mongoBatchNames, [], extraBatches);
+          return;
+        }
+        
+        // Actualizar el dropdown de batches faltantes
+        updateMissingBatchesDropdown(missingBatches);
+        
+        // Mostrar notificación
+        showNotification(`Se encontraron ${missingBatches.length} batches faltantes de ${localBatches.length} totales`, 'warning');
+        
+        // Mostrar modal con detalles completos
+        showComparisonResultsModal(localBatches, mongoBatchNames, missingBatches, extraBatches);
+        
+      } catch (error) {
+        console.error('❌ Error al comparar batches:', error);
+        showNotification(`Error al comparar batches: ${error.message}`, 'error');
+      }
+    }
+
+    // Función para mostrar modal con resultados completos de la comparación
+    function showComparisonResultsModal(localBatches, mongoBatches, missingBatches, extraBatches) {
+      
+      // Crear secciones de contenido
+      const summaryHtml = `
+        <div class="row mb-4">
+          <div class="col-md-3">
+            <div class="card bg-info text-white text-center">
+              <div class="card-body">
+                <h3>${localBatches.length}</h3>
+                <small>Batches Locales Total</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card bg-success text-white text-center">
+              <div class="card-body">
+                <h3>${mongoBatches.length}</h3>
+                <small>En MongoDB</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card bg-warning text-white text-center">
+              <div class="card-body">
+                <h3>${missingBatches.length}</h3>
+                <small>Faltantes por Crear</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card bg-secondary text-white text-center">
+              <div class="card-body">
+                <h3>${extraBatches.length}</h3>
+                <small>Solo en MongoDB</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Crear lista de batches faltantes en columnas
+      let missingBatchesHtml = '';
+      if (missingBatches.length > 0) {
+        const batchesPerColumn = Math.ceil(missingBatches.length / 4);
+        
+        missingBatchesHtml = `
+          <h6 class="mb-3 text-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            Batches Faltantes (${missingBatches.length}) - Disponibles para Asignar:
+          </h6>
+          <div class="row">
+        `;
+        
+        for (let col = 0; col < 4; col++) {
+          const startIndex = col * batchesPerColumn;
+          const endIndex = Math.min(startIndex + batchesPerColumn, missingBatches.length);
+          const columnBatches = missingBatches.slice(startIndex, endIndex);
+          
+          if (columnBatches.length > 0) {
+            missingBatchesHtml += `
+              <div class="col-md-3">
+                <ul class="list-unstyled small">
+                  ${columnBatches.map(batch => `<li><code class="text-warning">${batch}</code></li>`).join('')}
+                </ul>
+              </div>
+            `;
+          }
+        }
+        missingBatchesHtml += '</div>';
+      } else {
+        missingBatchesHtml = `
+          <div class="alert alert-success">
+            <i class="fas fa-check-circle"></i>
+            ¡Excelente! Todos los batches locales ya están registrados en MongoDB.
+          </div>
+        `;
+      }
+      
+      // Mostrar algunos batches que están en MongoDB (para verificación)
+      const existingBatchesHtml = `
+        <h6 class="mb-3 text-success">
+          <i class="fas fa-check-circle"></i>
+          Batches ya en MongoDB (primeros 20):
+        </h6>
+        <div class="row">
+          <div class="col-12">
+            <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+              ${mongoBatches.slice(0, 20).map(batch => `<code class="text-success me-2">${batch}</code>`).join('')}
+              ${mongoBatches.length > 20 ? `<small class="text-muted">... y ${mongoBatches.length - 20} más</small>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      const modalHtml = `
+        <div class="modal fade" id="comparisonResultsModal" tabindex="-1">
+          <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">
+                  <i class="fas fa-chart-pie"></i>
+                  Comparación Completa: Batches Locales vs MongoDB
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                ${summaryHtml}
+                
+                <hr class="my-4">
+                
+                ${missingBatchesHtml}
+                
+                <hr class="my-4">
+                
+                ${existingBatchesHtml}
+                
+                <div class="alert alert-info mt-4">
+                  <h6><i class="fas fa-lightbulb"></i> Próximos Pasos:</h6>
+                  <ul class="mb-0">
+                    <li><strong>Asignar batches faltantes:</strong> Usa el botón "Crear Nuevo Batch" y verás sugerencias automáticas</li>
+                    <li><strong>Autocompletado activo:</strong> Al escribir en "Batch ID", aparecerán los batches faltantes</li>
+                    <li><strong>Distribución sugerida:</strong> Puedes asignar los batches entre ${CREW_MEMBERS ? CREW_MEMBERS.join(', ') : 'el equipo'}</li>
+                    <li><strong>Exportar lista:</strong> Descarga la lista completa para revisión offline</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="$('#newBatchModal').modal('show')">
+                  <i class="fas fa-plus"></i> Crear Nuevo Batch
+                </button>
+                <button type="button" class="btn btn-success" onclick="exportComparisonResults(${JSON.stringify(missingBatches).replace(/"/g, '&quot;')})">
+                  <i class="fas fa-download"></i> Exportar Faltantes
+                </button>
+                <button type="button" class="btn btn-info" onclick="console.log('Locales:', ${JSON.stringify(localBatches)}); console.log('MongoDB:', ${JSON.stringify(mongoBatches)})">
+                  <i class="fas fa-bug"></i> Debug Console
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Eliminar modal existente si existe
+      const existingModal = document.getElementById('comparisonResultsModal');
+      if (existingModal) {
+        existingModal.remove();
+      }
+      
+      // Agregar nuevo modal
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      
+      // Mostrar modal
+      const modal = new bootstrap.Modal(document.getElementById('comparisonResultsModal'));
+      modal.show();
+    }
+
+    // Función para exportar resultados de comparación
+    function exportComparisonResults(missingBatches) {
+      if (!missingBatches || missingBatches.length === 0) {
+        showNotification('No hay batches faltantes para exportar', 'info');
+        return;
+      }
+      
+      // Crear CSV con información detallada
+      let csvContent = "Batch_ID,Estado,Sugerencia_Asignacion,Prioridad,Comentarios\n";
+      
+      missingBatches.forEach((batch, index) => {
+        // Sugerir asignación rotatoria entre el equipo
+        const assignees = CREW_MEMBERS;
+        const suggestedAssignee = assignees.length ? assignees[index % assignees.length] : '';
+        
+        // Determinar prioridad basada en el tipo de batch
+        let priority = 'media';
+        if (batch.includes('T19')) priority = 'alta'; // Batches con timestamp
+        if (parseInt(batch.replace('batch_', '')) > 4000) priority = 'alta'; // Batches numericos altos
+        
+        csvContent += `"${batch}","Pendiente de crear","${suggestedAssignee}","${priority}","Batch disponible localmente, pendiente de asignación al equipo"\n`;
+      });
+      
+      // Descargar archivo
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `batches_faltantes_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showNotification(`Lista de ${missingBatches.length} batches faltantes exportada con sugerencias de asignación`, 'success');
+    }
+    function updateMissingBatchesDropdown(missingBatches) {
+      // Buscar el input de batch id
+      const batchInput = document.getElementById('batch_id');
+      if (!batchInput) return;
+      
+      // Crear un datalist para sugerencias de batches faltantes
+      let datalist = document.getElementById('missing-batches-datalist');
+      if (datalist) {
+        datalist.remove();
+      }
+      
+      if (missingBatches.length > 0) {
+        datalist = document.createElement('datalist');
+        datalist.id = 'missing-batches-datalist';
+        
+        missingBatches.forEach(batchName => {
+          const option = document.createElement('option');
+          option.value = batchName;
+          datalist.appendChild(option);
+        });
+        
+        // Agregar datalist al documento y conectar con el input
+        document.body.appendChild(datalist);
+        batchInput.setAttribute('list', 'missing-batches-datalist');
+        batchInput.setAttribute('placeholder', 'Ej: batch_400, Batch_400 (sugerencias disponibles)');
+      }
+    }
+
+    // Función para mostrar modal con batches faltantes
+    function showMissingBatchesModal(missingBatches) {
+      // Crear las columnas de batches
+      let batchColumns = '';
+      const batchesPerColumn = Math.ceil(missingBatches.length / 4);
+      
+      for (let col = 0; col < 4; col++) {
+        const startIndex = col * batchesPerColumn;
+        const endIndex = Math.min(startIndex + batchesPerColumn, missingBatches.length);
+        const columnBatches = missingBatches.slice(startIndex, endIndex);
+        
+        if (columnBatches.length > 0) {
+          batchColumns += `
+            <div class="col-md-3">
+              <ul class="list-unstyled">
+                ${columnBatches.map(batch => `<li><code>${batch}</code></li>`).join('')}
+              </ul>
+            </div>
+          `;
+        }
+      }
+      
+      const modalHtml = `
+        <div class="modal fade" id="missingBatchesModal" tabindex="-1">
+          <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">
+                  <i class="fas fa-exclamation-triangle text-warning"></i>
+                  Batches Faltantes en MongoDB
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="alert alert-warning">
+                  <i class="fas fa-info-circle"></i>
+                  Se encontraron <strong>${missingBatches.length}</strong> batches que están disponibles localmente pero no están registrados en MongoDB.
+                </div>
+                
+                <h6 class="mb-3">📋 Lista de Batches Faltantes:</h6>
+                <div class="row">
+                  ${batchColumns}
+                </div>
+                
+                <div class="alert alert-info mt-4">
+                  <h6><i class="fas fa-lightbulb"></i> ¿Cómo usar esta información?</h6>
+                  <ul class="mb-0">
+                    <li>Los batches faltantes ahora aparecen como <strong>sugerencias automáticas</strong> en el campo "Batch ID" del formulario</li>
+                    <li>Al crear un nuevo batch, empieza a escribir y verás las sugerencias</li>
+                    <li>Puedes asignar estos batches a cualquier segmentador del equipo</li>
+                    <li>Una vez creados en el sistema, ya no aparecerán como faltantes</li>
+                  </ul>
+                </div>
+                
+                <div class="row mt-3">
+                  <div class="col-md-6">
+                    <div class="card border-success">
+                      <div class="card-body text-center">
+                        <h5 class="card-title text-success">
+                          <i class="fas fa-database"></i> En MongoDB
+                        </h5>
+                        <h2 class="text-success">${missingBatches.length > 0 ? (565 - missingBatches.length) : 565}</h2>
+                        <small class="text-muted">Batches registrados</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="card border-warning">
+                      <div class="card-body text-center">
+                        <h5 class="card-title text-warning">
+                          <i class="fas fa-folder"></i> Locales Faltantes
+                        </h5>
+                        <h2 class="text-warning">${missingBatches.length}</h2>
+                        <small class="text-muted">Por registrar</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="$('#newBatchModal').modal('show')">
+                  <i class="fas fa-plus"></i> Crear Nuevo Batch
+                </button>
+                <button type="button" class="btn btn-success" onclick="exportMissingBatches()">
+                  <i class="fas fa-download"></i> Exportar Lista
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Eliminar modal existente si existe
+      const existingModal = document.getElementById('missingBatchesModal');
+      if (existingModal) {
+        existingModal.remove();
+      }
+      
+      // Agregar nuevo modal
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      
+      // Mostrar modal
+      const modal = new bootstrap.Modal(document.getElementById('missingBatchesModal'));
+      modal.show();
+    }
+
+    // Función para exportar la lista de batches faltantes
+    function exportMissingBatches() {
+      // Obtener la lista de batches faltantes desde el modal
+      const modalElement = document.getElementById('missingBatchesModal');
+      if (!modalElement) return;
+      
+      // Extraer los batches del modal
+      const batchElements = modalElement.querySelectorAll('code');
+      const missingBatches = Array.from(batchElements).map(el => el.textContent);
+      
+      if (missingBatches.length === 0) {
+        showNotification('No hay batches faltantes para exportar', 'warning');
+        return;
+      }
+      
+      // Crear CSV
+      let csvContent = "Batch_ID,Estado,Comentarios\n";
+      missingBatches.forEach(batch => {
+        csvContent += `"${batch}","Pendiente","Batch disponible localmente, pendiente de asignar"\n`;
+      });
+      
+      // Descargar archivo
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `batches_faltantes_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showNotification(`Lista de ${missingBatches.length} batches faltantes exportada`, 'success');
+    }
+
+    // Función para mostrar métricas del equipo
+    function showTeamMetrics() {
+      // Calcular estadísticas por responsable
+      const byAssignee = {};
+      batches.forEach(b => {
+        if (!byAssignee[b.assignee]) {
+          byAssignee[b.assignee] = { 
+            total: 0, 
+            pending: 0,     // NS
+            inProgress: 0,  // FS  
+            completed: 0,   // S
+            batches: []
+          };
+        }
+        byAssignee[b.assignee].total++;
+        byAssignee[b.assignee].batches.push(b);
+        if (b.status === 'NS') byAssignee[b.assignee].pending++;
+        else if (b.status === 'FS') byAssignee[b.assignee].inProgress++;
+        else if (b.status === 'S') byAssignee[b.assignee].completed++;
+      });
+
+      // Generar HTML para las métricas
+      let metricsHtml = `
+        <div class="row mb-4">
+          <div class="col-12">
+            <h6 class="fw-bold">📊 Resumen General del Equipo</h6>
+            <div class="row">
+              <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                  <div class="card-body text-center">
+                    <h4>${batches.length}</h4>
+                    <small>Total Batches</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card bg-success text-white">
+                  <div class="card-body text-center">
+                    <h4>${batches.filter(b => b.status === 'S').length}</h4>
+                    <small>Completados (S)</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                  <div class="card-body text-center">
+                    <h4>${batches.filter(b => b.status === 'FS').length}</h4>
+                    <small>Incompletas (FS)</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card bg-secondary text-white">
+                  <div class="card-body text-center">
+                    <h4>${batches.filter(b => b.status === 'NS').length}</h4>
+                    <small>Pendientes (NS)</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <h6 class="fw-bold mb-3">👥 Métricas por Segmentador</h6>
+        <div class="row">
+      `;
+
+      // Generar métricas por cada responsable
+      Object.keys(byAssignee).sort().forEach(assignee => {
+        const stats = byAssignee[assignee];
+        const completionRate = ((stats.completed / stats.total) * 100).toFixed(1);
+        const progressRate = ((stats.inProgress / stats.total) * 100).toFixed(1);
+        
+        metricsHtml += `
+          <div class="col-md-6 mb-3">
+            <div class="card">
+              <div class="card-header">
+                <h6 class="mb-0">
+                  <i class="fas fa-user"></i> ${assignee}
+                  <span class="badge bg-primary ms-2">${stats.total} batches</span>
+                </h6>
+              </div>
+              <div class="card-body">
+                <div class="row text-center">
+                  <div class="col-3">
+                    <div class="text-success">
+                      <h5>${stats.completed}</h5>
+                      <small>Completados</small>
+                      <br><small class="text-muted">${completionRate}%</small>
+                    </div>
+                  </div>
+                  <div class="col-3">
+                    <div class="text-warning">
+                      <h5>${stats.inProgress}</h5>
+                      <small>Incompletas</small>
+                      <br><small class="text-muted">${progressRate}%</small>
+                    </div>
+                  </div>
+                  <div class="col-3">
+                    <div class="text-secondary">
+                      <h5>${stats.pending}</h5>
+                      <small>Pendientes</small>
+                      <br><small class="text-muted">${(100 - parseFloat(completionRate) - parseFloat(progressRate)).toFixed(1)}%</small>
+                    </div>
+                  </div>
+                  <div class="col-3">
+                    <a href="/dashboard/${assignee}" class="btn btn-sm btn-outline-primary">
+                      <i class="fas fa-eye"></i> Ver Dashboard
+                    </a>
+                  </div>
+                </div>
+                
+                <!-- Barra de progreso -->
+                <div class="progress mt-3" style="height: 20px;">
+                  <div class="progress-bar bg-success" style="width: ${completionRate}%" title="Completados: ${completionRate}%"></div>
+                  <div class="progress-bar bg-warning" style="width: ${progressRate}%" title="Incompletas: ${progressRate}%"></div>
+                </div>
+                <small class="text-muted mt-1 d-block">
+                  Progreso: ${completionRate}% completado, ${progressRate}% en proceso
+                </small>
+                
+                <!-- Lista de batches recientes -->
+                <div class="mt-3">
+                  <small class="fw-bold">Batches Recientes:</small>
+                  <div class="mt-1">
+        `;
+        
+        // Mostrar los últimos 3 batches del responsable
+        const recentBatches = stats.batches.slice(-3);
+        recentBatches.forEach(batch => {
+          const statusColor = batch.status === 'S' ? 'success' : 
+                             batch.status === 'FS' ? 'warning' : 'secondary';
+          metricsHtml += `
+            <span class="badge bg-${statusColor} me-1 mb-1">${batch.id} (${batch.status})</span>
+          `;
+        });
+        
+        metricsHtml += `
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      metricsHtml += `
+        </div>
+        
+        <!-- Tabla resumen -->
+        <div class="table-responsive mt-4">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Responsable</th>
+                <th>Total</th>
+                <th>Completados</th>
+                <th>Incompletas</th>
+                <th>Pendientes</th>
+                <th>% Completado</th>
+                <th>Último Batch</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+      
+      Object.keys(byAssignee).sort().forEach(assignee => {
+        const stats = byAssignee[assignee];
+        const completionRate = ((stats.completed / stats.total) * 100).toFixed(1);
+        const lastBatch = stats.batches[stats.batches.length - 1];
+        
+        metricsHtml += `
+          <tr>
+            <td><strong>${assignee}</strong></td>
+            <td>${stats.total}</td>
+            <td><span class="badge bg-success">${stats.completed}</span></td>
+            <td><span class="badge bg-warning">${stats.inProgress}</span></td>
+            <td><span class="badge bg-secondary">${stats.pending}</span></td>
+            <td>${completionRate}%</td>
+            <td>${lastBatch ? lastBatch.id : 'N/A'}</td>
+          </tr>
+        `;
+      });
+      
+      metricsHtml += `
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      // Mostrar el modal
+      $('#teamMetricsContent').html(metricsHtml);
+      $('#teamMetricsModal').modal('show');
+    }
+
+    // Función para exportar métricas
+    function exportMetrics() {
+      // Calcular estadísticas
+      const byAssignee = {};
+      batches.forEach(b => {
+        if (!byAssignee[b.assignee]) {
+          byAssignee[b.assignee] = { total: 0, pending: 0, inProgress: 0, completed: 0 };
+        }
+        byAssignee[b.assignee].total++;
+        if (b.status === 'NS') byAssignee[b.assignee].pending++;
+        else if (b.status === 'FS') byAssignee[b.assignee].inProgress++;
+        else if (b.status === 'S') byAssignee[b.assignee].completed++;
+      });
+
+      // Crear CSV
+      let csvContent = "Responsable,Total,Completados,Incompletas,Pendientes,Porcentaje Completado\\n";
+      Object.keys(byAssignee).sort().forEach(assignee => {
+        const stats = byAssignee[assignee];
+        const completionRate = ((stats.completed / stats.total) * 100).toFixed(1);
+        csvContent += `${assignee},${stats.total},${stats.completed},${stats.inProgress},${stats.pending},${completionRate}%\\n`;
+      });
+
+      // Descargar archivo
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `metricas_equipo_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      showNotification('Métricas exportadas exitosamente', 'success');
+    }
+
+    // Función para auto-crear batches desde MongoDB
+    function autoCreateBatches() {
+      console.log('🤖 Iniciando auto-creación de batches desde MongoDB...');
+      
+      if (!confirm('¿Quieres crear automáticamente batches basándose en los archivos encontrados en MongoDB?\n\nEsto puede crear muchos batches nuevos.')) {
+        return;
+      }
+      
+      showNotification('Buscando archivos en MongoDB para crear batches automáticamente...', 'info');
+      
+      $.post('/api/auto-create-batches')
+        .done(function(response) {
+          console.log('✅ Auto-creación completada:', response);
+          if (response.success) {
+            showNotification(`${response.created_batches} nuevos batches creados automáticamente de ${response.total_found} archivos encontrados`, 'success');
+            loadBatches(); // Recargar la tabla
+          } else {
+            showNotification('Error en auto-creación: ' + response.error, 'error');
+          }
+        })
+        .fail(function(xhr) {
+          console.error('❌ Error en auto-creación:', xhr.responseJSON);
+          showNotification('Error creando batches automáticamente: ' + (xhr.responseJSON?.error || 'Error desconocido'), 'error');
+        });
+    }
+
+    // Función para asignación masiva de batches
+    function bulkAssignBatches() {
+      console.log('👥 Iniciando asignación masiva de batches...');
+      
+      // Mostrar modal personalizado para asignación masiva
+      const assigneeOptions = CREW_MEMBERS
+        .map(member => `<option value="${member}">${member}</option>`)
+        .join('');
+      
+      const modalHtml = `
+        <div class="modal fade" id="bulkAssignModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">
+                  <i class="fas fa-users"></i> Asignación Masiva de Batches
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label class="form-label">Asignar a:</label>
+                  <select class="form-select" id="bulkAssignee" required>
+                    <option value="">Seleccionar responsable...</option>
+                    ${assigneeOptions}
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Criterio de asignación:</label>
+                  <select class="form-select" id="bulkCriteria">
+                    <option value="unassigned">Solo batches sin asignar</option>
+                    <option value="pending">Batches pendientes (NS)</option>
+                    <option value="all">Todos los batches</option>
+                  </select>
+                </div>
+                <div class="alert alert-warning">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  <strong>Atención:</strong> Esta operación cambiará el responsable de múltiples batches simultáneamente.
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="executeBulkAssign()">
+                  <i class="fas fa-check"></i> Asignar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Agregar el modal al DOM si no existe
+      if (!document.getElementById('bulkAssignModal')) {
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+      }
+      
+      // Mostrar el modal
+      new bootstrap.Modal(document.getElementById('bulkAssignModal')).show();
+    }
+
+    // Función para ejecutar la asignación masiva
+    function executeBulkAssign() {
+      const assignee = document.getElementById('bulkAssignee').value;
+      const criteria = document.getElementById('bulkCriteria').value;
+      
+      if (!assignee) {
+        showNotification('Por favor selecciona un responsable', 'warning');
+        return;
+      }
+      
+      // Filtrar batches según el criterio
+      let targetBatches = [];
+      switch(criteria) {
+        case 'unassigned':
+          targetBatches = batches.filter(b => !b.assignee || b.assignee.trim() === '');
+          break;
+        case 'pending':
+          targetBatches = batches.filter(b => b.status === 'NS');
+          break;
+        case 'all':
+          targetBatches = batches;
+          break;
+      }
+      
+      if (targetBatches.length === 0) {
+        showNotification('No hay batches que cumplan el criterio seleccionado', 'warning');
+        return;
+      }
+      
+      if (!confirm(`¿Asignar ${targetBatches.length} batches a ${assignee}?`)) {
+        return;
+      }
+      
+      showNotification(`Asignando ${targetBatches.length} batches a ${assignee}...`, 'info');
+      
+      // Asignar batches uno por uno
+      let completed = 0;
+      let errors = 0;
+      
+      targetBatches.forEach((batch, index) => {
+        $.ajax({
+          url: `/api/batches/${batch.id}`,
+          method: 'PUT',
+          contentType: 'application/json',
+          data: JSON.stringify({ assignee: assignee }),
+          success: function(response) {
+            completed++;
+            if (completed + errors === targetBatches.length) {
+              // Operación completada
+              showNotification(`✅ Asignación masiva completada: ${completed} batches asignados a ${assignee}`, 'success');
+              loadBatches(); // Recargar tabla
+              bootstrap.Modal.getInstance(document.getElementById('bulkAssignModal')).hide();
+            }
+          },
+          error: function(xhr) {
+            errors++;
+            if (completed + errors === targetBatches.length) {
+              showNotification(`⚠️ Asignación completada con errores: ${completed} exitosos, ${errors} fallidos`, 'warning');
+              loadBatches(); // Recargar tabla
+              bootstrap.Modal.getInstance(document.getElementById('bulkAssignModal')).hide();
+            }
+          }
+        });
+      });
+    }
+
+    // Función para cerrar sesión
+    function logout() {
+      if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+        showNotification('Cerrando sesión...', 'info');
+        // Aquí puedes agregar lógica adicional como limpiar localStorage, etc.
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1000);
+      }
+    }
+
+    function addInlineEditEvents() {
+      // Usar event delegation en document para que funcione tras re-render de DataTables
+      $(document).off('change', '.segmentation-status-select').on('change', '.segmentation-status-select', function() {
+        const batchId = $(this).data('batch-id');
+        updateBatchField(batchId, 'status', $(this).val(), $(this));
+      });
+
+      $(document).off('change', '.priority-select').on('change', '.priority-select', function() {
+        const batchId = $(this).data('batch-id');
+        updateBatchField(batchId, 'priority', $(this).val(), $(this));
+      });
+
+      $(document).off('change', '.review-select').on('change', '.review-select', function() {
+        const batchId = $(this).data('batch-id');
+        updateBatchField(batchId, 'review_status', $(this).val(), $(this));
+      });
+
+      $(document).off('change', '.review-date-input').on('change', '.review-date-input', function() {
+        const batchId = $(this).data('batch-id');
+        updateBatchField(batchId, 'reviewed_at', $(this).val(), $(this));
+      });
+
+      $(document).off('blur', '.comments-input').on('blur', '.comments-input', function() {
+        const batchId = $(this).data('batch-id');
+        updateBatchField(batchId, 'comments', $(this).val(), $(this));
+      });
+    }
+
+    function updateBatchField(batchId, field, value, element) {
+      // Mostrar indicador de guardado
+      const originalBg = element.css('background-color');
+      element.css('background-color', '#fff3cd');
+      
+      const updateData = {};
+      if (field === 'reviewed_at') {
+        updateData.metadata = { reviewed_at: value };
+      } else if (field === 'priority') {
+        updateData.metadata = { priority: value };
+      } else if (field === 'review_status') {
+        updateData.metadata = { review_status: value };
+      } else {
+        updateData[field] = value;
+      }
+      
+      $.ajax({
+        url: `/api/batches/${batchId}`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(updateData),
+        success: function(response) {
+          // Mostrar éxito
+          element.css('background-color', '#d4edda');
+          setTimeout(() => {
+            element.css('background-color', originalBg);
+          }, 1000);
+          
+          // Actualizar datos locales
+          const batch = batches.find(b => b.id === batchId);
+          if (batch) {
+            if (field === 'reviewed_at') {
+              batch.metadata.reviewed_at = value;
+            } else if (field === 'priority') {
+              batch.metadata.priority = value;
+            } else if (field === 'review_status') {
+              batch.metadata.review_status = value;
+            } else {
+              batch[field] = value;
+            }
+            updateStats();
+          }
+          
+          console.log(`✅ ${field} actualizado para ${batchId}: ${value}`);
+          showNotification(`Campo ${field} actualizado exitosamente`, 'success');
+        },
+        error: function(xhr) {
+          // Mostrar error
+          element.css('background-color', '#f8d7da');
+          setTimeout(() => {
+            element.css('background-color', originalBg);
+          }, 2000);
+          
+          const errorMsg = xhr.responseJSON?.error || 'Error desconocido';
+          showNotification(`Error actualizando ${field}: ${errorMsg}`, 'error');
+          console.error(`❌ Error actualizando ${field}:`, xhr);
+        }
+      });
+    }
+    
+    
+    /* FUNCIÓN DESHABILITADA - Batch ID es ahora estático y no editable
+    function updateBatchId(oldId, newId, element) {
+      // Esta función se deshabilitó porque el Batch ID ya no es editable
+      // para evitar conflictos y mantener la integridad de los datos
+      
+      // Código original comentado para referencia futura
+      // Validar que el nuevo ID no esté vacío
+      // if (!newId) {
+      //   showNotification('El Batch ID no puede estar vacío', 'warning');
+      //   element.val(oldId); // Restaurar valor anterior
+      //   return;
+      // }
+      
+      // ... resto del código comentado ...
+    }
+    */
+  </script>
+  <!-- Modal de Leyenda de Estatus -->
+  <div class="modal fade" id="statusLegendModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-info-circle"></i> Leyenda de Estatus de Segmentación</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-12">
+              <h6 class="fw-bold mb-3">Estatus de Segmentación:</h6>
+              <ul class="list-unstyled">
+                <li class="mb-2">
+                  <span class="badge bg-success me-2">S</span>
+                  <strong>Segmentado:</strong> Batch completamente segmentado
+                </li>
+                <li class="mb-2">
+                  <span class="badge bg-warning me-2">FS</span>
+                  <strong>Incompleta:</strong> Faltan algunas imágenes por segmentar
+                </li>
+                <li class="mb-2">
+                  <span class="badge bg-secondary me-2">NS</span>
+                  <strong>No Segmentado:</strong> Batch sin iniciar segmentación
+                </li>
+              </ul>
+              
+              <h6 class="fw-bold mb-3 mt-4">MongoDB:</h6>
+              <ul class="list-unstyled">
+                <li class="mb-2">
+                  <i class="fas fa-check-circle text-success me-2"></i>
+                  <strong>Sí:</strong> Archivos subidos a MongoDB
+                </li>
+                <li class="mb-2">
+                  <i class="fas fa-times-circle text-danger me-2"></i>
+                  <strong>No:</strong> Sin archivos en MongoDB
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Nuevas funciones para métricas avanzadas
+    function showGlobalStats() {
+      if (!batches || batches.length === 0) {
+        showNotification('No hay datos de batches para mostrar estadísticas', 'warning');
+        return;
+      }
+
+      const totalBatches = batches.length;
+      const completedBatches = batches.filter(b => b.status === 'S').length;
+      const inProgressBatches = batches.filter(b => b.status === 'FS').length;
+      const pendingBatches = batches.filter(b => b.status === 'NS').length;
+      const completionRate = ((completedBatches / totalBatches) * 100).toFixed(1);
+
+      const assigneeStats = {};
+      batches.forEach(b => {
+        if (!assigneeStats[b.assignee]) {
+          assigneeStats[b.assignee] = { total: 0, completed: 0 };
+        }
+        assigneeStats[b.assignee].total++;
+        if (b.status === 'S') assigneeStats[b.assignee].completed++;
+      });
+
+      let globalStatsHtml = `
+        <div class="row mb-4">
+          <div class="col-12">
+            <h5 class="text-center mb-4">🌍 Estadísticas Globales del Proyecto</h5>
+          </div>
+        </div>
+        
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <div class="card border-success">
+              <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="fas fa-chart-pie"></i> Resumen General</h6>
+              </div>
+              <div class="card-body">
+                <div class="row text-center">
+                  <div class="col-6 mb-3">
+                    <h4 class="text-primary">${totalBatches}</h4>
+                    <small class="text-muted">Total Batches</small>
+                  </div>
+                  <div class="col-6 mb-3">
+                    <h4 class="text-success">${completionRate}%</h4>
+                    <small class="text-muted">Tasa de Completado</small>
+                  </div>
+                  <div class="col-4">
+                    <h5 class="text-success">${completedBatches}</h5>
+                    <small>Completados</small>
+                  </div>
+                  <div class="col-4">
+                    <h5 class="text-warning">${inProgressBatches}</h5>
+                    <small>En Progreso</small>
+                  </div>
+                  <div class="col-4">
+                    <h5 class="text-danger">${pendingBatches}</h5>
+                    <small>Pendientes</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <div class="card border-info">
+              <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="fas fa-users"></i> Rendimiento por Persona</h6>
+              </div>
+              <div class="card-body">
+                ${Object.entries(assigneeStats).map(([assignee, stats]) => {
+                  const rate = ((stats.completed / stats.total) * 100).toFixed(1);
+                  return `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <span class="fw-bold">${assignee}</span>
+                      <div>
+                        <span class="badge bg-primary">${stats.completed}/${stats.total}</span>
+                        <span class="badge bg-success">${rate}%</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.querySelector('#teamMetricsModal .modal-body').innerHTML = globalStatsHtml;
+      document.querySelector('#teamMetricsModal .modal-title').textContent = 'Estadísticas Globales';
+      new bootstrap.Modal(document.getElementById('teamMetricsModal')).show();
+    }
+
+    function showProgressReport() {
+      if (!batches || batches.length === 0) {
+        showNotification('No hay datos disponibles para generar reporte', 'warning');
+        return;
+      }
+
+      // Calcular días transcurridos desde el inicio del proyecto
+      const startDate = new Date('2025-07-23');
+      const currentDate = new Date();
+      const daysElapsed = Math.ceil((currentDate - startDate) / (1000 * 60 * 60 * 24));
+
+      const totalBatches = batches.length;
+      const completedBatches = batches.filter(b => b.status === 'S').length;
+      const dailyAverage = (completedBatches / daysElapsed).toFixed(2);
+      const estimatedDaysToComplete = Math.ceil((totalBatches - completedBatches) / parseFloat(dailyAverage));
+
+      let progressReportHtml = `
+        <div class="row mb-4">
+          <div class="col-12 text-center">
+            <h5><i class="fas fa-chart-line"></i> Reporte de Progreso del Proyecto</h5>
+            <p class="text-muted">Análisis de productividad y estimaciones</p>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <h4 class="text-info">${daysElapsed}</h4>
+                <small>Días Transcurridos</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <h4 class="text-success">${dailyAverage}</h4>
+                <small>Batches/Día Promedio</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <h4 class="text-warning">${estimatedDaysToComplete}</h4>
+                <small>Días Estimados para Terminar</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="row mt-4">
+          <div class="col-12">
+            <div class="progress" style="height: 30px;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                   role="progressbar" 
+                   style="width: ${((completedBatches/totalBatches)*100).toFixed(1)}%;">
+                ${completedBatches}/${totalBatches} Batches (${((completedBatches/totalBatches)*100).toFixed(1)}%)
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.querySelector('#teamMetricsModal .modal-body').innerHTML = progressReportHtml;
+      document.querySelector('#teamMetricsModal .modal-title').textContent = 'Reporte de Progreso';
+      new bootstrap.Modal(document.getElementById('teamMetricsModal')).show();
+    }
+  </script>
+
+  <script>
+    // Sistema de menú dinámico
+    const availablePages = [
+      { name: 'Home', path: '/', icon: 'fas fa-home' },
+      { name: 'Dashboard', path: '/dashboard', icon: 'fas fa-th-large' },
+      { name: 'Assign Batches', path: '/assign', icon: 'fas fa-arrows-alt' },
+      { name: 'Masks', path: '/masks', icon: 'fas fa-images' },
+      { name: 'Metrics', path: '/metrics', icon: 'fas fa-chart-bar' }
+    ];
+
+    // Determinar la página actual
+    const currentPath = window.location.pathname;
+    const currentPage = availablePages.find(page => page.path === currentPath) || availablePages[1]; // Default to Dashboard
+
+    // Generar menú dinámico
+    function generateMenu() {
+      const menuItems = document.querySelector('.menu-items');
+      menuItems.innerHTML = '';
+
+      // Filtrar páginas para excluir la actual
+      const otherPages = availablePages.filter(page => page.path !== currentPath);
+
+      // Agregar las otras páginas en orden
+      otherPages.forEach(page => {
+        const menuItem = document.createElement('a');
+        menuItem.href = page.path;
+        menuItem.className = 'menu-item';
+        menuItem.innerHTML = `
+          <i class="${page.icon}"></i>
+          <span>${page.name}</span>
+        `;
+        menuItems.appendChild(menuItem);
+      });
+
+      // Agregar opción de salir
+      const logoutItem = document.createElement('a');
+      logoutItem.href = '#';
+      logoutItem.className = 'menu-item';
+      logoutItem.onclick = logout;
+      logoutItem.innerHTML = `
+        <i class="fas fa-sign-out-alt"></i>
+        <span>Salir</span>
+      `;
+      menuItems.appendChild(logoutItem);
+    }
+
+    // Menú dinámico ya no es necesario - ahora usamos el sidebar unificado
+    // document.addEventListener('DOMContentLoaded', function() {
+    //   generateMenu();
+    // });
+    function exportReport(format) {
+      showNotification('Generando reporte ' + format.toUpperCase() + '...', 'info');
+      fetch('/api/export/batches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: format, batch_ids: [] })
+      })
+      .then(response => {
+        if (!response.ok) throw new Error('Error en la exportación');
+        return response.blob();
+      })
+      .then(blob => {
+        const ext = format === 'excel' ? 'xlsx' : 'csv';
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'reporte_batches_' + new Date().toISOString().split('T')[0] + '.' + ext;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        showNotification('Reporte generado exitosamente', 'success');
+      })
+      .catch(error => {
+        showNotification('Error generando reporte: ' + error.message, 'error');
+      });
+    }
+
+</script>
+{% endblock %}

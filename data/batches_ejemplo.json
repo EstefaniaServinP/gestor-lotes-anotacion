@@ -1,0 +1,85 @@
+{
+  "mode": "add",
+  "batches": [
+    {
+      "id": "p1_cam1_cam2_000001",
+      "assignee": "Segmentador 1",
+      "folder": "./data/imagenes/p1_cam1_cam2_000001",
+      "tasks": ["segmentar", "subir_mascaras", "revisar"],
+      "specification": "Panel de puerta gris (costura OK, arruga NOK, rayón OK, mancha OK)",
+      "metadata": {
+        "assigned_at": "2025-07-01",
+        "due_date": "2025-07-08",
+        "priority": "alta",
+        "reviewed_at": "2025-07-09"
+      },
+      "status": "S",
+      "mongo_uploaded": true,
+      "comments": "Lote completo y revisado"
+    },
+    {
+      "id": "p1_cam1_cam2_000002",
+      "assignee": "Segmentador 2",
+      "folder": "./data/imagenes/p1_cam1_cam2_000002",
+      "tasks": ["segmentar", "subir_mascaras", "revisar"],
+      "specification": "Panel de puerta negro (costura NOK, arruga OK, rayón OK, mancha OK)",
+      "metadata": {
+        "assigned_at": "2025-07-02",
+        "due_date": "2025-07-10",
+        "priority": "alta",
+        "reviewed_at": null
+      },
+      "status": "FS",
+      "mongo_uploaded": true,
+      "comments": "Faltan por subir algunas máscaras"
+    },
+    {
+      "id": "p2_cam1_cam2_000001",
+      "assignee": "Segmentador 3",
+      "folder": "./data/imagenes/p2_cam1_cam2_000001",
+      "tasks": ["segmentar", "subir_mascaras", "revisar"],
+      "specification": "Tablero beige (textura OK, alineación_costura OK, burbuja NOK, hundimiento OK)",
+      "metadata": {
+        "assigned_at": "2025-07-03",
+        "due_date": "2025-07-12",
+        "priority": "media",
+        "reviewed_at": null
+      },
+      "status": "NS",
+      "mongo_uploaded": false,
+      "comments": "Tablero beige (textura OK, alineación_costura OK, burbuja NOK, hundimiento OK)"
+    },
+    {
+      "id": "p2_cam1_cam2_000002",
+      "assignee": "",
+      "folder": "./data/imagenes/p2_cam1_cam2_000002",
+      "tasks": ["segmentar", "subir_mascaras", "revisar"],
+      "specification": "Tablero negro (textura NOK, alineación_costura OK, burbuja OK, hundimiento OK)",
+      "metadata": {
+        "assigned_at": null,
+        "due_date": "",
+        "priority": "media",
+        "reviewed_at": null
+      },
+      "status": "NS",
+      "mongo_uploaded": false,
+      "comments": ""
+    },
+    {
+      "id": "p3_cam1_cam2_000001",
+      "assignee": "",
+      "folder": "./data/imagenes/p3_cam1_cam2_000001",
+      "tasks": ["segmentar", "subir_mascaras", "revisar"],
+      "specification": "Consola central gris (color OK, alineación_pieza OK, rayón OK, hundimiento NOK)",
+      "metadata": {
+        "assigned_at": null,
+        "due_date": "",
+        "priority": "alta",
+        "reviewed_at": null
+      },
+      "status": "NS",
+      "mongo_uploaded": false,
+      "comments": ""
+    }
+  ]
+}

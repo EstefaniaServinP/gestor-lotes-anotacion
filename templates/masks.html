@@ -1,0 +1,532 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard de Máscaras{% endblock %}
+
+{% block extra_css_libs %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block page_css %}
+{% include 'theme_system.html' %}
+<style>
+    body {
+      background: var(--background);
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text-primary);
+    }
+    
+    /* Container principal */
+    .masks-container {
+      padding: 3rem 0 2rem 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .masks-card {
+      background: var(--surface);
+      border-radius: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 3rem;
+      text-align: center;
+      backdrop-filter: blur(15px);
+      border: 1px solid var(--border);
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    .title-section {
+      margin-bottom: 2rem;
+    }
+
+    .title-section h1 {
+      color: var(--text-primary);
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    .title-section h1 i {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 1.25rem;
+    }
+
+    .title-section p {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
+    
+    /* Sección de filtros colapsable */
+    .filters-section {
+      margin-bottom: 2rem;
+    }
+    
+    .filter-toggle-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+    
+    .filter-toggle-btn {
+      background: var(--surface);
+      border: 2px solid var(--primary);
+      border-radius: 25px;
+      padding: 1rem 2rem;
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .filter-toggle-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      background: var(--primary);
+      color: white;
+    }
+    
+    .filter-toggle-btn .toggle-icon {
+      transition: transform 0.3s ease;
+      font-size: 0.9rem;
+    }
+    
+    .filter-toggle-btn.active .toggle-icon {
+      transform: rotate(180deg);
+    }
+    
+    .filters-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: all 0.4s ease;
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    
+    .filters-content.show {
+      max-height: 200px;
+      opacity: 1;
+      transform: translateY(0);
+      margin-top: 1rem;
+    }
+    
+    .filter-group {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 1.2rem;
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+      height: 100%;
+    }
+
+    .filter-group:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-color: var(--primary);
+    }
+
+    .filter-label {
+      display: block;
+      color: var(--text-primary);
+      font-weight: 600;
+      margin-bottom: 0.6rem;
+      font-size: 0.875rem;
+    }
+
+    .filter-label i {
+      margin-right: 0.5rem;
+      color: var(--primary);
+      width: 16px;
+    }
+
+    .filter-input {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--text-primary);
+      font-size: 0.875rem;
+      transition: all 0.3s ease;
+    }
+
+    .filter-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    
+    .filter-input::placeholder {
+      color: #999;
+      font-style: italic;
+    }
+    
+    /* Tabla moderna */
+    .table-container {
+      background: var(--surface);
+      border-radius: 15px;
+      padding: 1.5rem;
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .table {
+      margin-bottom: 0;
+    }
+
+    .table thead th {
+      background: var(--surface-hover);
+      border: none;
+      color: var(--text-primary);
+      font-weight: 600;
+      padding: 1rem;
+      font-size: 0.875rem;
+    }
+
+    .table tbody tr {
+      transition: all 0.3s ease;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .table tbody tr:hover {
+      background: var(--surface-hover);
+    }
+
+    .table tbody td {
+      padding: 1rem;
+      border: none;
+      color: var(--text-primary);
+      font-size: 0.875rem;
+    }
+    
+    /* DataTables customization */
+    .dataTables_wrapper .dataTables_filter input {
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      padding: 0.5rem 1rem;
+      background: var(--surface);
+      color: var(--text-primary);
+    }
+
+    .dataTables_wrapper .dataTables_length select {
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      color: var(--text-primary);
+    }
+
+    .page-link {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+
+    .page-link:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .page-item.active .page-link {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+    
+    /* Animaciones */
+    .fade-in {
+      animation: fadeIn 0.6s ease-in;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .pulse {
+      animation: pulse-animation 2s infinite;
+    }
+    
+    @keyframes pulse-animation {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="masks-container">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-11">
+          <div class="masks-card fade-in">
+            <div class="title-section">
+              <h1><i class="fas fa-image"></i> MÁSCARAS</h1>
+              <p>Explora y gestiona todas las máscaras almacenadas en la base de datos</p>
+
+              <!-- Toggle de Tema -->
+              <div class="mt-3 d-flex justify-content-center align-items-center gap-2">
+                <button class="theme-toggle-btn" onclick="toggleTheme()" style="background: var(--surface); border: 2px solid var(--primary); color: var(--primary); padding: 0.5rem 1rem; border-radius: 20px; cursor: pointer; transition: all 0.3s ease;">
+                  <div class="theme-toggle-slider">
+                    <i class="fas fa-sun theme-toggle-icon"></i>
+                  </div>
+                </button>
+                <span class="theme-label" style="color: var(--text-secondary); font-size: 0.875rem;">Modo Claro</span>
+              </div>
+            </div>
+            
+            <!-- Botón de filtros colapsable -->
+            <div class="filters-section">
+              <div class="filter-toggle-container">
+                <button class="filter-toggle-btn" onclick="toggleFilters()">
+                  <i class="fas fa-search"></i>
+                  <span>Filtrar Máscaras</span>
+                  <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+              </div>
+              
+              <div class="filters-content" id="filtersContent">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="filter-group">
+                      <label class="filter-label">
+                        <i class="fas fa-file-alt"></i> Por Nombre
+                      </label>
+                      <input type="text" id="nameFilter" class="filter-input" 
+                             placeholder="Ej: batch_20, mask_45...">
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="filter-group">
+                      <label class="filter-label">
+                        <i class="fas fa-calendar"></i> Por Fecha
+                      </label>
+                      <input type="text" id="dateFilter" class="filter-input" 
+                             placeholder="Ej: 2025-07-24, 07-24...">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="table-container">
+              <table id="masksTable" class="table table-striped table-hover">
+                <thead>
+                  <tr>
+                    <th><i class="fas fa-file-image"></i> Nombre de Archivo</th>
+                    <th><i class="fas fa-calendar-alt"></i> Fecha de Subida</th>
+                    <th><i class="fas fa-info-circle"></i> Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for f in files %}
+                  <tr>
+                    <td>
+                      <i class="fas fa-image text-primary me-2"></i>
+                      <strong>{{ f.filename }}</strong>
+                    </td>
+                    <td>
+                      {% if f.uploadDate %}
+                        <i class="fas fa-clock text-success me-2"></i>
+                        {{ f.uploadDate.strftime('%Y-%m-%d %H:%M:%S') }}
+                      {% else %}
+                        <i class="fas fa-question-circle text-warning me-2"></i>
+                        <em>Fecha no disponible</em>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if f.uploadDate %}
+                        <span class="badge bg-success">
+                          <i class="fas fa-check-circle"></i> Activo
+                        </span>
+                      {% else %}
+                        <span class="badge bg-warning">
+                          <i class="fas fa-exclamation-triangle"></i> Sin metadata
+                        </span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js_libs %}
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}
+
+{% block page_js %}
+<script>
+    let masksTable;
+    
+    $(document).ready(function() {
+      // Inicializar DataTables con nuestro estilo
+      masksTable = $('#masksTable').DataTable({
+        responsive: true,
+        pageLength: 25,
+        language: {
+          url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+        },
+        order: [[1, 'desc']], // Ordenar por fecha descendente
+        dom: '<"row"<"col-sm-6"l><"col-sm-6">>' +  // Ocultar búsqueda default
+             '<"row"<"col-sm-12"tr>>' +
+             '<"row"<"col-sm-5"i><"col-sm-7"p>>',
+        drawCallback: function() {
+          // Aplicar efectos después de cada redibujado
+          $('.table tbody tr').hover(
+            function() { $(this).addClass('pulse'); },
+            function() { $(this).removeClass('pulse'); }
+          );
+        }
+      });
+      
+      // Filtro por nombre (columna 0)
+      $('#nameFilter').on('keyup', function() {
+        const value = this.value;
+        masksTable.column(0).search(value).draw();
+        updateResultsInfo();
+      });
+      
+      // Filtro por fecha (columna 1)
+      $('#dateFilter').on('keyup', function() {
+        const value = this.value;
+        masksTable.column(1).search(value).draw();
+        updateResultsInfo();
+      });
+      
+      // Efectos visuales para los filtros
+      $('.filter-input').on('focus', function() {
+        $(this).closest('.filter-group').addClass('pulse');
+      }).on('blur', function() {
+        $(this).closest('.filter-group').removeClass('pulse');
+      });
+      
+      // Mostrar información inicial
+      updateResultsInfo();
+    });
+    
+    // Función para toggle de filtros
+    function toggleFilters() {
+      const filtersContent = document.getElementById('filtersContent');
+      const toggleBtn = document.querySelector('.filter-toggle-btn');
+      
+      if (filtersContent.classList.contains('show')) {
+        // Cerrar filtros
+        filtersContent.classList.remove('show');
+        toggleBtn.classList.remove('active');
+      } else {
+        // Abrir filtros
+        filtersContent.classList.add('show');
+        toggleBtn.classList.add('active');
+        
+        // Enfocar el primer campo después de un pequeño delay
+        setTimeout(() => {
+          document.getElementById('nameFilter').focus();
+        }, 200);
+      }
+    }
+    
+    // Función para actualizar información de resultados
+    function updateResultsInfo() {
+      const info = masksTable.page.info();
+      const totalRecords = info.recordsTotal;
+      const filteredRecords = info.recordsDisplay;
+      
+      if (filteredRecords !== totalRecords) {
+        // Crear notificación de filtro activo
+        showFilterNotification(`Mostrando ${filteredRecords} de ${totalRecords} máscaras`);
+      }
+    }
+    
+    // Función para mostrar notificaciones de filtro
+    function showFilterNotification(message) {
+      // Remover notificación anterior si existe
+      $('.filter-notification').remove();
+      
+      const notification = $(`
+        <div class="filter-notification">
+          <i class="fas fa-filter"></i> ${message}
+        </div>
+      `);
+      
+      notification.css({
+        position: 'fixed',
+        top: '100px',
+        right: '20px',
+        background: 'linear-gradient(135deg, rgba(183, 148, 246, 0.9) 0%, rgba(246, 135, 179, 0.9) 100%)',
+        color: 'white',
+        padding: '0.75rem 1rem',
+        borderRadius: '25px',
+        fontSize: '0.9rem',
+        fontWeight: '600',
+        zIndex: '1001',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.3)',
+        boxShadow: '0 8px 20px rgba(183, 148, 246, 0.3)',
+        animation: 'slideInRight 0.3s ease'
+      });
+      
+      $('body').append(notification);
+      
+      // Auto-remover después de 3 segundos
+      setTimeout(() => {
+        notification.fadeOut(300, function() {
+          $(this).remove();
+        });
+      }, 3000);
+    }
+
+    // Animación de entrada
+    window.addEventListener('load', function() {
+      setTimeout(() => {
+        document.querySelector('.masks-card').style.opacity = '1';
+        document.querySelector('.masks-card').style.transform = 'translateY(0)';
+      }, 100);
+    });
+    
+    // Agregar CSS para animación de notificación
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInRight {
+        from {
+          opacity: 0;
+          transform: translateX(100px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+</script>
+{% endblock %}
